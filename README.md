@@ -73,8 +73,8 @@ If you use AgentModernize in your research, please cite:
 
 ```bibtex
 @article{sheikh2026agentmodernize,
-  title={Preserving Business Logic in Legacy System Modernization: A Multi-Agent LLM Framework with Behavioral Specification Graphs},
-  author={Sheikh, Nazib},
+  title={AgentModernize: Preserving Business Logic in Legacy Modernization with Multi-Agent LLMs and Behavioral Specification Graphs},
+  author={Ahmed, Sheikh Nazib},
   year={2026}
 }
 ```
