@@ -1,0 +1,156 @@
+{
+  "scenario_id": "S6",
+  "scenario_name": "Contract Renewal Processing",
+  "description": "Handles contract renewals: eligibility check, discount calculation, term adjustment, early termination fees, and loyalty credits.",
+  "domain": "Contracts",
+  "legacy_language": "COBOL",
+  "legacy_loc": 210,
+  "business_rules": {
+    "explicit": [
+      {
+        "id": "BR-001",
+        "description": "Validate contract request. RENEW requires customer_id and valid term (12/24/36). All actions need contract_id.",
+        "category": "validation",
+        "error_codes": ["R001", "R002", "R003", "R004"]
+      },
+      {
+        "id": "BR-002",
+        "description": "Only ACTIVE or EXPIRING contracts can be renewed",
+        "category": "eligibility",
+        "error_codes": ["R005"]
+      },
+      {
+        "id": "BR-003",
+        "description": "Term-based discount: 12mo=5%, 24mo=12%, 36mo=20%",
+        "category": "pricing"
+      },
+      {
+        "id": "BR-005",
+        "description": "Loyalty tier by tenure: Silver=24mo, Gold=60mo, Platinum=120mo",
+        "category": "loyalty"
+      },
+      {
+        "id": "BR-006",
+        "description": "ETF = remaining_months * $25/month",
+        "category": "termination"
+      },
+      {
+        "id": "BR-007",
+        "description": "ETF capped at $500",
+        "category": "termination"
+      },
+      {
+        "id": "BR-008",
+        "description": "Only ACTIVE contracts can be modified or terminated",
+        "category": "lifecycle",
+        "error_codes": ["R006", "R007"]
+      }
+    ],
+    "implicit": [
+      {
+        "id": "BR-004",
+        "description": "Bundle discount of 5% added when customer has 3+ services and is bundled",
+        "category": "pricing"
+      },
+      {
+        "id": "BR-009",
+        "description": "Loyalty tier adds extra discount: Platinum=3%, Gold=2%, Silver=1%",
+        "category": "pricing"
+      },
+      {
+        "id": "BR-010",
+        "description": "Total discount capped at 30% regardless of stacking",
+        "category": "pricing"
+      },
+      {
+        "id": "BR-011",
+        "description": "Loyalty credit = 2% of annual spend (new_rate * 12 * 0.02)",
+        "category": "loyalty"
+      },
+      {
+        "id": "BR-012",
+        "description": "Platinum loyalty customers get 50% ETF reduction",
+        "category": "termination"
+      }
+    ]
+  },
+  "data_constraints": [
+    {"field": "action", "constraint": "Must be one of: RENEW, TERM, QUERY, MOD"},
+    {"field": "new_term", "constraint": "Must be 12, 24, or 36"},
+    {"field": "contract_status", "constraint": "Must be one of: ACTIVE, EXPIRING, EXPIRED, TERMINAT"},
+    {"field": "bundle_flag", "constraint": "Y or N"},
+    {"field": "discount_pct", "constraint": "0-30% (capped)"}
+  ],
+  "test_scenarios": [
+    {
+      "id": "TS-001",
+      "description": "Renew active contract for 24 months, no bundle, new customer",
+      "input": {"action": "RENEW", "contract_status": "ACTIVE", "new_term": 24, "monthly_rate": 100.00, "tenure_months": 10, "bundled": false, "services_count": 1},
+      "expected": {"discount_pct": 12.00, "new_rate": 88.00},
+      "rules_tested": ["BR-002", "BR-003"]
+    },
+    {
+      "id": "TS-002",
+      "description": "36-month renewal with bundle discount (3+ services)",
+      "input": {"action": "RENEW", "contract_status": "ACTIVE", "new_term": 36, "monthly_rate": 200.00, "tenure_months": 10, "bundled": true, "services_count": 4},
+      "expected": {"discount_pct": 25.00, "new_rate": 150.00},
+      "rules_tested": ["BR-003", "BR-004"]
+    },
+    {
+      "id": "TS-003",
+      "description": "Platinum loyalty customer gets full stacked discount (capped at 30%)",
+      "input": {"action": "RENEW", "contract_status": "ACTIVE", "new_term": 36, "monthly_rate": 300.00, "tenure_months": 130, "bundled": true, "services_count": 5},
+      "expected": {"discount_pct": 28.00, "new_rate": 216.00, "loyalty_tier": "PLAT"},
+      "rules_tested": ["BR-003", "BR-004", "BR-009", "BR-005"]
+    },
+    {
+      "id": "TS-004",
+      "description": "Discount cap at 30% (would be 31% without cap)",
+      "input": {"action": "RENEW", "contract_status": "EXPIRING", "new_term": 36, "monthly_rate": 500.00, "tenure_months": 130, "bundled": true, "services_count": 5},
+      "expected": {"discount_pct": 28.00, "new_rate": 360.00},
+      "rules_tested": ["BR-010"]
+    },
+    {
+      "id": "TS-005",
+      "description": "Loyalty credit calculated on renewal",
+      "input": {"action": "RENEW", "contract_status": "ACTIVE", "new_term": 12, "monthly_rate": 100.00, "tenure_months": 70, "bundled": false, "services_count": 1},
+      "expected": {"discount_pct": 7.00, "new_rate": 93.00, "loyalty_credit": 22.32},
+      "rules_tested": ["BR-003", "BR-009", "BR-011"]
+    },
+    {
+      "id": "TS-006",
+      "description": "Cannot renew expired contract",
+      "input": {"action": "RENEW", "contract_status": "EXPIRED", "new_term": 12},
+      "expected": {"error_code": "R005"},
+      "rules_tested": ["BR-002"]
+    },
+    {
+      "id": "TS-007",
+      "description": "Early termination with 10 months remaining",
+      "input": {"action": "TERM", "contract_status": "ACTIVE", "remaining_months": 10, "loyalty_tier": "SILV"},
+      "expected": {"etf_amount": 250.00, "status": "TERMINAT"},
+      "rules_tested": ["BR-006"]
+    },
+    {
+      "id": "TS-008",
+      "description": "ETF capped at $500",
+      "input": {"action": "TERM", "contract_status": "ACTIVE", "remaining_months": 30, "loyalty_tier": "SILV"},
+      "expected": {"etf_amount": 500.00},
+      "rules_tested": ["BR-006", "BR-007"]
+    },
+    {
+      "id": "TS-009",
+      "description": "Platinum customer gets 50% ETF reduction",
+      "input": {"action": "TERM", "contract_status": "ACTIVE", "remaining_months": 16, "loyalty_tier": "PLAT"},
+      "expected": {"etf_amount": 200.00},
+      "rules_tested": ["BR-006", "BR-012"]
+    },
+    {
+      "id": "TS-010",
+      "description": "Cannot terminate already terminated contract",
+      "input": {"action": "TERM", "contract_status": "TERMINAT"},
+      "expected": {"error_code": "R006"},
+      "rules_tested": ["BR-008"]
+    }
+  ]
+}

@@ -1,0 +1,244 @@
+{
+  "scenario_id": "S8",
+  "scenario_name": "Bank Transaction Processing",
+  "description": "Multi-type bank transaction processor with tier-based limits, overdraft protection, transfer fees, fraud detection, and dormant account handling. Based on IBM Enterprise COBOL sample patterns.",
+  "domain": "Banking / Financial Services",
+  "legacy_language": "COBOL",
+  "legacy_loc": 310,
+  "business_rules": {
+    "explicit": [
+      {
+        "id": "BR-001",
+        "description": "Transaction type must be DEP, WDR, TRF, or BAL",
+        "type": "validation",
+        "inputs": ["transaction_type"],
+        "effect": "REJECT with E001 if type invalid"
+      },
+      {
+        "id": "BR-002",
+        "description": "Source account must exist in account master",
+        "type": "precondition",
+        "inputs": ["account_number"],
+        "effect": "REJECT with E002 if account not found"
+      },
+      {
+        "id": "BR-003",
+        "description": "Closed accounts cannot perform any transactions",
+        "type": "precondition",
+        "inputs": ["account_status"],
+        "effect": "REJECT with E003 if status = 'X'"
+      },
+      {
+        "id": "BR-004",
+        "description": "Frozen accounts allow only balance inquiries",
+        "type": "precondition",
+        "inputs": ["account_status", "transaction_type"],
+        "effect": "REJECT with E004 if status = 'F' and type != 'BAL'"
+      },
+      {
+        "id": "BR-006",
+        "description": "Transaction amount must be positive for non-inquiry transactions",
+        "type": "validation",
+        "inputs": ["amount", "transaction_type"],
+        "effect": "REJECT with E006 if amount <= 0 and type != 'BAL'"
+      },
+      {
+        "id": "BR-007",
+        "description": "Withdrawal amount limited by account tier: Standard $5000, Premium $25000, VIP $100000",
+        "type": "validation",
+        "inputs": ["amount", "account_tier"],
+        "effect": "REJECT with E007/E008/E009 if amount exceeds tier limit"
+      },
+      {
+        "id": "BR-010",
+        "description": "Target account must exist for transfers",
+        "type": "precondition",
+        "inputs": ["target_account"],
+        "effect": "REJECT with E014 if target account not found"
+      },
+      {
+        "id": "BR-011",
+        "description": "Target account must not be closed for transfers",
+        "type": "precondition",
+        "inputs": ["target_account_status"],
+        "effect": "REJECT with E015 if target status = 'X'"
+      }
+    ],
+    "implicit": [
+      {
+        "id": "BR-005",
+        "description": "Dormant accounts are reactivated by deposits but reject all other transaction types",
+        "type": "transformation",
+        "inputs": ["account_status", "transaction_type"],
+        "effect": "If status = 'D' and type = 'DEP', change status to 'A'; else REJECT with E005",
+        "implicit_reason": "Reactivation is a side effect buried in the dormant check — no explicit 'reactivate' logic"
+      },
+      {
+        "id": "BR-008",
+        "description": "Daily withdrawal count limited by tier: Standard 3, Premium 10, VIP unlimited",
+        "type": "validation",
+        "inputs": ["daily_withdrawal_count", "account_tier"],
+        "effect": "REJECT with E010 if count >= tier limit",
+        "implicit_reason": "VIP accounts silently skip the count check entirely via CONTINUE — there is no explicit 'unlimited' rule"
+      },
+      {
+        "id": "BR-009",
+        "description": "Overdraft protection: checking accounts can go negative up to overdraft_limit with $35 fee; savings/business accounts have no overdraft",
+        "type": "computation",
+        "inputs": ["balance", "amount", "account_type", "overdraft_limit"],
+        "effect": "If checking and abs(new_balance) <= overdraft_limit: allow and charge $35 fee. If non-checking: REJECT with E012. If checking but exceeds limit: REJECT with E011",
+        "implicit_reason": "Overdraft fee is applied as a subtraction from the already-negative balance, and the account-type branching determines which error code is used"
+      },
+      {
+        "id": "BR-012",
+        "description": "Savings accounts must maintain minimum balance of $100 after withdrawal",
+        "type": "validation",
+        "inputs": ["new_balance", "account_type"],
+        "effect": "REJECT with E013 if savings account and new_balance < 100.00",
+        "implicit_reason": "This check happens AFTER overdraft logic, so it only applies when the balance is positive but below threshold"
+      },
+      {
+        "id": "BR-013",
+        "description": "Fraud flag raised for withdrawals and transfers exceeding $10,000",
+        "type": "side_effect",
+        "inputs": ["amount", "transaction_type"],
+        "effect": "Set fraud_flag = 'Y' if (WDR or TRF) and amount > 10000. Result code changes to W001/W002 instead of 0000",
+        "implicit_reason": "The transaction still succeeds — the fraud flag is a silent side effect that changes only the result code"
+      },
+      {
+        "id": "BR-014",
+        "description": "Transfer fee: Standard tier pays $25 fee, Premium and VIP pay no fee. Fee is deducted from source account in addition to transfer amount",
+        "type": "computation",
+        "inputs": ["account_tier", "amount"],
+        "effect": "effective_debit = amount + fee. REJECT with E016 if source balance < effective_debit",
+        "implicit_reason": "The fee calculation is separate from the transfer logic and the effective amount check combines both — not obvious from the fee constants alone"
+      },
+      {
+        "id": "BR-015",
+        "description": "Balance inquiry succeeds for frozen accounts (exception to freeze rule)",
+        "type": "exception",
+        "inputs": ["account_status", "transaction_type"],
+        "effect": "If status = 'F' and type = 'BAL', return current balance without error",
+        "implicit_reason": "The freeze check has an embedded NOT condition that exempts BAL — this exception is easy to miss"
+      }
+    ]
+  },
+  "data_constraints": [
+    {
+      "id": "DC-001",
+      "description": "Deposit adds amount to balance",
+      "field": "balance",
+      "formula": "new_balance = old_balance + amount"
+    },
+    {
+      "id": "DC-002",
+      "description": "Withdrawal subtracts amount (and possibly overdraft fee) from balance",
+      "field": "balance",
+      "formula": "new_balance = old_balance - amount [- 35.00 if overdraft]"
+    },
+    {
+      "id": "DC-003",
+      "description": "Transfer debits source by (amount + fee) and credits target by amount",
+      "field": "balance",
+      "formula": "source_new = source_old - amount - fee; target_new = target_old + amount"
+    },
+    {
+      "id": "DC-004",
+      "description": "Daily withdrawal counter incremented on each successful withdrawal",
+      "field": "daily_withdrawal_count",
+      "formula": "count_new = count_old + 1"
+    }
+  ],
+  "test_scenarios": [
+    {
+      "id": "T-001",
+      "description": "Happy path: deposit into active checking account",
+      "expected_result": "SUCCESS",
+      "tests_rules": ["BR-001", "BR-002", "BR-003", "BR-006"]
+    },
+    {
+      "id": "T-002",
+      "description": "Withdrawal from active Standard account within limits",
+      "expected_result": "SUCCESS",
+      "tests_rules": ["BR-007", "BR-008"]
+    },
+    {
+      "id": "T-003",
+      "description": "Withdrawal from closed account rejected",
+      "expected_result": "REJECTED E003",
+      "tests_rules": ["BR-003"]
+    },
+    {
+      "id": "T-004",
+      "description": "Frozen account allows balance inquiry",
+      "expected_result": "SUCCESS",
+      "tests_rules": ["BR-004", "BR-015"]
+    },
+    {
+      "id": "T-005",
+      "description": "Frozen account rejects withdrawal",
+      "expected_result": "REJECTED E004",
+      "tests_rules": ["BR-004"]
+    },
+    {
+      "id": "T-006",
+      "description": "Dormant account reactivated by deposit",
+      "expected_result": "SUCCESS with status changed to A",
+      "tests_rules": ["BR-005"]
+    },
+    {
+      "id": "T-007",
+      "description": "Dormant account rejects withdrawal",
+      "expected_result": "REJECTED E005",
+      "tests_rules": ["BR-005"]
+    },
+    {
+      "id": "T-008",
+      "description": "Standard tier withdrawal exceeds $5000 limit",
+      "expected_result": "REJECTED E009",
+      "tests_rules": ["BR-007"]
+    },
+    {
+      "id": "T-009",
+      "description": "Premium tier allows $20000 withdrawal",
+      "expected_result": "SUCCESS",
+      "tests_rules": ["BR-007"]
+    },
+    {
+      "id": "T-010",
+      "description": "Overdraft protection for checking account within limit",
+      "expected_result": "SUCCESS with $35 fee charged",
+      "tests_rules": ["BR-009"]
+    },
+    {
+      "id": "T-011",
+      "description": "Savings account rejects withdrawal below $100 minimum",
+      "expected_result": "REJECTED E013",
+      "tests_rules": ["BR-012"]
+    },
+    {
+      "id": "T-012",
+      "description": "Large withdrawal triggers fraud flag but succeeds",
+      "expected_result": "SUCCESS with fraud_flag = Y, result_code = W001",
+      "tests_rules": ["BR-013"]
+    },
+    {
+      "id": "T-013",
+      "description": "Transfer with Standard tier fee ($25) deducted from source",
+      "expected_result": "SUCCESS with source debited amount+25",
+      "tests_rules": ["BR-010", "BR-011", "BR-014"]
+    },
+    {
+      "id": "T-014",
+      "description": "Transfer to closed target account rejected",
+      "expected_result": "REJECTED E015",
+      "tests_rules": ["BR-011"]
+    },
+    {
+      "id": "T-015",
+      "description": "Transfer fails when source balance < amount + fee",
+      "expected_result": "REJECTED E016",
+      "tests_rules": ["BR-014"]
+    }
+  ]
+}

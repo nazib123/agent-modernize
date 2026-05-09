@@ -1,0 +1,181 @@
+{
+  "scenario_id": "S5",
+  "scenario_name": "Fault Ticket Escalation",
+  "description": "Manages trouble ticket lifecycle: creation, severity assessment, SLA tracking, escalation, and resolution with tiered escalation based on severity, elapsed time, and customer tier.",
+  "domain": "Fault Management",
+  "legacy_language": "COBOL",
+  "legacy_loc": 230,
+  "business_rules": {
+    "explicit": [
+      {
+        "id": "BR-001",
+        "description": "Validate ticket request fields. CREATE requires fault_type and severity (1-4). UPDATE/ESCAL/RESOLVE require ticket_id.",
+        "category": "validation",
+        "error_codes": ["T001", "T002", "T003", "T004"]
+      },
+      {
+        "id": "BR-002",
+        "description": "SLA targets by severity: Critical=60min, Major=240min, Minor=1440min, Info=4320min",
+        "category": "sla"
+      },
+      {
+        "id": "BR-004",
+        "description": "Cannot update resolved or closed tickets",
+        "category": "lifecycle",
+        "error_codes": ["T005"]
+      },
+      {
+        "id": "BR-005",
+        "description": "Cannot escalate resolved or closed tickets",
+        "category": "escalation",
+        "error_codes": ["T006"]
+      },
+      {
+        "id": "BR-006",
+        "description": "Maximum 5 escalations per ticket and max escalation level is 4",
+        "category": "escalation",
+        "error_codes": ["T007", "T008"]
+      },
+      {
+        "id": "BR-008",
+        "description": "Cannot resolve closed tickets",
+        "category": "lifecycle",
+        "error_codes": ["T009"]
+      },
+      {
+        "id": "BR-009",
+        "description": "Resolution requires a resolution_code",
+        "category": "validation",
+        "error_codes": ["T010"]
+      },
+      {
+        "id": "BR-010",
+        "description": "Query requires ticket_id",
+        "category": "validation",
+        "error_codes": ["T004"]
+      }
+    ],
+    "implicit": [
+      {
+        "id": "BR-003",
+        "description": "Platinum tier reduces SLA by 50%, Gold tier reduces SLA by 25%",
+        "category": "sla"
+      },
+      {
+        "id": "BR-007",
+        "description": "SLA breach flag set when elapsed time exceeds SLA target during escalation or resolution",
+        "category": "sla"
+      },
+      {
+        "id": "BR-011",
+        "description": "Outage affecting >100 circuits auto-upgrades to Severity 1 and starts at escalation level 2",
+        "category": "escalation"
+      },
+      {
+        "id": "BR-012",
+        "description": "Critical severity tickets at level 3+ trigger VP notification (result code VP-NOTIFY)",
+        "category": "escalation"
+      },
+      {
+        "id": "BR-013",
+        "description": "SLA breach flag is set on resolution if resolved after SLA deadline",
+        "category": "sla"
+      }
+    ]
+  },
+  "data_constraints": [
+    {"field": "action", "constraint": "Must be one of: CREATE, UPDATE, ESCAL, RESOLV, QUERY"},
+    {"field": "fault_type", "constraint": "Must be one of: OUTAGE, DEGRAD, INTERM, CONFIG"},
+    {"field": "severity", "constraint": "Integer 1-4 (1=Critical, 4=Info)"},
+    {"field": "customer_tier", "constraint": "Must be one of: PLAT, GOLD, SILV, BRNZ"},
+    {"field": "ticket_status", "constraint": "Must be one of: OPEN, WORKING, ESCALATD, RESOLVED, CLOSED"},
+    {"field": "escalation_level", "constraint": "Integer 1-4"},
+    {"field": "escalation_count", "constraint": "Integer 0-5"}
+  ],
+  "test_scenarios": [
+    {
+      "id": "TS-001",
+      "description": "Create critical outage ticket for standard customer",
+      "input": {"action": "CREATE", "fault_type": "OUTAGE", "severity": 1, "customer_tier": "SILV", "affected_circuits": 50},
+      "expected": {"status": "OPEN", "sla_minutes": 60, "level": 1},
+      "rules_tested": ["BR-001", "BR-002"]
+    },
+    {
+      "id": "TS-002",
+      "description": "Platinum tier reduces SLA by 50%",
+      "input": {"action": "CREATE", "fault_type": "DEGRAD", "severity": 2, "customer_tier": "PLAT", "affected_circuits": 10},
+      "expected": {"status": "OPEN", "sla_minutes": 120, "level": 1},
+      "rules_tested": ["BR-002", "BR-003"]
+    },
+    {
+      "id": "TS-003",
+      "description": "Gold tier reduces SLA by 25%",
+      "input": {"action": "CREATE", "fault_type": "INTERM", "severity": 3, "customer_tier": "GOLD", "affected_circuits": 5},
+      "expected": {"status": "OPEN", "sla_minutes": 1080, "level": 1},
+      "rules_tested": ["BR-002", "BR-003"]
+    },
+    {
+      "id": "TS-004",
+      "description": "Outage >100 circuits auto-escalates to Sev 1, level 2",
+      "input": {"action": "CREATE", "fault_type": "OUTAGE", "severity": 3, "customer_tier": "SILV", "affected_circuits": 150},
+      "expected": {"status": "OPEN", "sla_minutes": 60, "severity": 1, "level": 2},
+      "rules_tested": ["BR-011"]
+    },
+    {
+      "id": "TS-005",
+      "description": "Escalate open ticket",
+      "input": {"action": "ESCAL", "ticket_id": "TKT001", "current_status": "OPEN", "current_level": 1, "escalation_count": 0, "severity": 2, "elapsed_minutes": 100, "sla_minutes": 240},
+      "expected": {"status": "ESCALATD", "level": 2, "sla_breached": false},
+      "rules_tested": ["BR-005"]
+    },
+    {
+      "id": "TS-006",
+      "description": "Escalation triggers SLA breach when elapsed > SLA",
+      "input": {"action": "ESCAL", "ticket_id": "TKT002", "current_status": "WORKING", "current_level": 1, "escalation_count": 0, "severity": 1, "elapsed_minutes": 90, "sla_minutes": 60},
+      "expected": {"status": "ESCALATD", "level": 2, "sla_breached": true},
+      "rules_tested": ["BR-005", "BR-007"]
+    },
+    {
+      "id": "TS-007",
+      "description": "Critical at level 3+ triggers VP notification",
+      "input": {"action": "ESCAL", "ticket_id": "TKT003", "current_status": "ESCALATD", "current_level": 2, "escalation_count": 1, "severity": 1, "elapsed_minutes": 50, "sla_minutes": 60},
+      "expected": {"status": "ESCALATD", "level": 3, "result_code": "VP-NOTIFY"},
+      "rules_tested": ["BR-012"]
+    },
+    {
+      "id": "TS-008",
+      "description": "Cannot escalate beyond max 5 escalations",
+      "input": {"action": "ESCAL", "ticket_id": "TKT004", "current_status": "ESCALATD", "current_level": 3, "escalation_count": 5, "severity": 2},
+      "expected": {"error_code": "T007"},
+      "rules_tested": ["BR-006"]
+    },
+    {
+      "id": "TS-009",
+      "description": "Cannot escalate resolved ticket",
+      "input": {"action": "ESCAL", "ticket_id": "TKT005", "current_status": "RESOLVED"},
+      "expected": {"error_code": "T006"},
+      "rules_tested": ["BR-005"]
+    },
+    {
+      "id": "TS-010",
+      "description": "Resolve ticket with resolution code",
+      "input": {"action": "RESOLV", "ticket_id": "TKT006", "current_status": "WORKING", "resolution_code": "FIXED", "elapsed_minutes": 100, "sla_minutes": 240},
+      "expected": {"status": "RESOLVED", "sla_breached": false},
+      "rules_tested": ["BR-008"]
+    },
+    {
+      "id": "TS-011",
+      "description": "Resolve after SLA sets breach flag",
+      "input": {"action": "RESOLV", "ticket_id": "TKT007", "current_status": "ESCALATD", "resolution_code": "WORKAROUND", "elapsed_minutes": 300, "sla_minutes": 240},
+      "expected": {"status": "RESOLVED", "sla_breached": true},
+      "rules_tested": ["BR-008", "BR-013"]
+    },
+    {
+      "id": "TS-012",
+      "description": "Cannot resolve without resolution code",
+      "input": {"action": "RESOLV", "ticket_id": "TKT008", "current_status": "WORKING", "resolution_code": ""},
+      "expected": {"error_code": "T010"},
+      "rules_tested": ["BR-009"]
+    }
+  ]
+}

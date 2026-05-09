@@ -1,0 +1,170 @@
+{
+  "scenario_id": "S3",
+  "scenario_name": "Service Activation & Provisioning",
+  "description": "Handles activation of new telecom services including port validation, capacity checks, feature bundling, and provisioning workflow scheduling.",
+  "domain": "Service Provisioning",
+  "legacy_language": "COBOL",
+  "legacy_loc": 245,
+  "business_rules": {
+    "explicit": [
+      {
+        "id": "BR-001",
+        "description": "Validate required service request fields: request_id, account_id, service_type",
+        "category": "validation",
+        "error_codes": ["S001", "S002", "S003"]
+      },
+      {
+        "id": "BR-002",
+        "description": "Bandwidth must not exceed port type limits: copper=100Mbps, fiber=10000Mbps, wireless=1000Mbps",
+        "category": "validation",
+        "error_codes": ["S004"]
+      },
+      {
+        "id": "BR-003",
+        "description": "Facility must have available ports (>0)",
+        "category": "capacity",
+        "error_codes": ["S008"]
+      },
+      {
+        "id": "BR-005",
+        "description": "Facility in maintenance blocks all activations",
+        "category": "capacity",
+        "error_codes": ["S007"]
+      },
+      {
+        "id": "BR-006",
+        "description": "Provisioning plan based on port type: fiber=FIBER-INST/8hrs/tech, copper=COPPER-ACT/4hrs/tech, wireless=WLS-PROV/2hrs/no-tech",
+        "category": "provisioning"
+      },
+      {
+        "id": "BR-007",
+        "description": "Feature bundling: BUNDLE=VOICE+DATA+VIDEO, VOICE=VOICE-ONLY, DATA=DATA-ONLY, VIDEO=VIDEO+DATA",
+        "category": "provisioning"
+      },
+      {
+        "id": "BR-008",
+        "description": "Monthly rate: fiber=0.50/Mbps, copper=1.20/Mbps, wireless=0.80/Mbps. Bundle gets 20% discount.",
+        "category": "pricing"
+      },
+      {
+        "id": "BR-010",
+        "description": "Minimum 3-day lead time for activation scheduling. If requested date too soon, auto-adjust.",
+        "category": "scheduling"
+      }
+    ],
+    "implicit": [
+      {
+        "id": "BR-004",
+        "description": "Enterprise tier exempt from 85% capacity threshold",
+        "category": "capacity"
+      },
+      {
+        "id": "BR-009",
+        "description": "Enterprise gets 50% off activation fee",
+        "category": "pricing"
+      },
+      {
+        "id": "BR-011",
+        "description": "Enterprise gets next-day activation for wireless (overrides 3-day lead time)",
+        "category": "scheduling"
+      },
+      {
+        "id": "BR-012",
+        "description": "Video service requires minimum 25 Mbps bandwidth",
+        "category": "validation",
+        "error_codes": ["S005"]
+      },
+      {
+        "id": "BR-013",
+        "description": "Bundle service requires fiber or wireless (not copper)",
+        "category": "validation",
+        "error_codes": ["S006"]
+      },
+      {
+        "id": "BR-014",
+        "description": "SLA tier mapped from customer tier: ENTERPRISE=PREMIUM, BUSINESS=STANDARD, RESIDENTIAL=BASIC",
+        "category": "provisioning"
+      }
+    ]
+  },
+  "data_constraints": [
+    {"field": "service_type", "constraint": "Must be one of: VOICE, DATA, VIDEO, BNDL"},
+    {"field": "port_type", "constraint": "Must be one of: CU, FBR, WLS"},
+    {"field": "bandwidth_mbps", "constraint": "Positive integer"},
+    {"field": "customer_tier", "constraint": "Must be one of: ENTERPRISE, BUSINESS, RESIDENTIAL"},
+    {"field": "available_ports", "constraint": "Non-negative integer"},
+    {"field": "capacity_threshold", "constraint": "85% utilization limit"}
+  ],
+  "test_scenarios": [
+    {
+      "id": "TS-001",
+      "description": "Basic fiber data service activation",
+      "input": {"service_type": "DATA", "port_type": "FBR", "bandwidth_mbps": 500, "customer_tier": "BUSINESS", "available_ports": 5, "total_capacity": 10000, "used_capacity": 3000, "maintenance": false},
+      "expected": {"provision_type": "FIBER-INST", "estimated_hours": 8, "tech_required": true, "sla_tier": "STANDARD", "monthly_rate": 250.00, "activation_fee": 99.99},
+      "rules_tested": ["BR-006", "BR-008", "BR-014"]
+    },
+    {
+      "id": "TS-002",
+      "description": "Bundle on copper rejected",
+      "input": {"service_type": "BNDL", "port_type": "CU", "bandwidth_mbps": 50},
+      "expected": {"error_code": "S006"},
+      "rules_tested": ["BR-013"]
+    },
+    {
+      "id": "TS-003",
+      "description": "Video below minimum bandwidth",
+      "input": {"service_type": "VIDEO", "port_type": "FBR", "bandwidth_mbps": 10},
+      "expected": {"error_code": "S005"},
+      "rules_tested": ["BR-012"]
+    },
+    {
+      "id": "TS-004",
+      "description": "Enterprise exempt from capacity threshold",
+      "input": {"service_type": "DATA", "port_type": "FBR", "bandwidth_mbps": 2000, "customer_tier": "ENTERPRISE", "available_ports": 3, "total_capacity": 10000, "used_capacity": 8800, "maintenance": false},
+      "expected": {"provision_type": "FIBER-INST", "sla_tier": "PREMIUM"},
+      "rules_tested": ["BR-004"]
+    },
+    {
+      "id": "TS-005",
+      "description": "Non-enterprise blocked by capacity threshold",
+      "input": {"service_type": "DATA", "port_type": "FBR", "bandwidth_mbps": 2000, "customer_tier": "BUSINESS", "available_ports": 3, "total_capacity": 10000, "used_capacity": 8800, "maintenance": false},
+      "expected": {"error_code": "S009"},
+      "rules_tested": ["BR-004"]
+    },
+    {
+      "id": "TS-006",
+      "description": "Enterprise wireless next-day activation",
+      "input": {"service_type": "DATA", "port_type": "WLS", "bandwidth_mbps": 200, "customer_tier": "ENTERPRISE", "available_ports": 10, "total_capacity": 5000, "used_capacity": 1000, "maintenance": false},
+      "expected": {"estimated_hours": 1, "activation_fee": 0.00, "sla_tier": "PREMIUM"},
+      "rules_tested": ["BR-009", "BR-011"]
+    },
+    {
+      "id": "TS-007",
+      "description": "Facility in maintenance",
+      "input": {"service_type": "DATA", "port_type": "FBR", "bandwidth_mbps": 100, "maintenance": true},
+      "expected": {"error_code": "S007"},
+      "rules_tested": ["BR-005"]
+    },
+    {
+      "id": "TS-008",
+      "description": "Copper bandwidth exceeds limit",
+      "input": {"service_type": "DATA", "port_type": "CU", "bandwidth_mbps": 150},
+      "expected": {"error_code": "S004"},
+      "rules_tested": ["BR-002"]
+    },
+    {
+      "id": "TS-009",
+      "description": "Bundle with fiber gets 20% discount",
+      "input": {"service_type": "BNDL", "port_type": "FBR", "bandwidth_mbps": 1000, "customer_tier": "RESIDENTIAL", "available_ports": 2, "total_capacity": 10000, "used_capacity": 2000, "maintenance": false},
+      "expected": {"features": "VOICE+DATA+VIDEO", "monthly_rate": 400.00, "sla_tier": "BASIC"},
+      "rules_tested": ["BR-007", "BR-008", "BR-014"]
+    },
+    {
+      "id": "TS-010",
+      "description": "No available ports",
+      "input": {"service_type": "DATA", "port_type": "FBR", "bandwidth_mbps": 100, "available_ports": 0, "maintenance": false},
+      "expected": {"error_code": "S008"},
+      "rules_tested": ["BR-003"]
+    }
+  ]
+}

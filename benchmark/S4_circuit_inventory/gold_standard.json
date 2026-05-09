@@ -1,0 +1,182 @@
+{
+  "scenario_id": "S4",
+  "scenario_name": "Circuit Inventory Management",
+  "description": "Manages telecom circuit lifecycle: assignment, modification, decommission. Tracks circuit status, capacity allocation, cross-connect relationships, and cost calculation.",
+  "domain": "Network Inventory",
+  "legacy_language": "COBOL",
+  "legacy_loc": 280,
+  "business_rules": {
+    "explicit": [
+      {
+        "id": "BR-001",
+        "description": "Validate circuit request fields based on action type. ASSIGN requires customer_id, circuit_type, and both site CLLIs.",
+        "category": "validation",
+        "error_codes": ["C001", "C002", "C003", "C004", "C005"]
+      },
+      {
+        "id": "BR-002",
+        "description": "Bandwidth must not exceed circuit type maximum: DS1=1544, DS3=44736, OC3=155520, OC12=622080, ETH=1000000",
+        "category": "validation",
+        "error_codes": ["C006"]
+      },
+      {
+        "id": "BR-003",
+        "description": "Both sites must be ACTIVE for circuit assignment",
+        "category": "capacity",
+        "error_codes": ["C007"]
+      },
+      {
+        "id": "BR-004",
+        "description": "Site must have available capacity (used < total)",
+        "category": "capacity",
+        "error_codes": ["C008"]
+      },
+      {
+        "id": "BR-005",
+        "description": "Cross-connect limit of 64 per site",
+        "category": "capacity",
+        "error_codes": ["C009"]
+      },
+      {
+        "id": "BR-006",
+        "description": "Circuit modification requires ASSIGNED status and bandwidth within max",
+        "category": "modification",
+        "error_codes": ["C010", "C011"]
+      },
+      {
+        "id": "BR-008",
+        "description": "Decommission requires ASSIGNED or RESERVED status",
+        "category": "lifecycle",
+        "error_codes": ["C013"]
+      },
+      {
+        "id": "BR-009",
+        "description": "Cannot decommission parent circuit with active children",
+        "category": "lifecycle",
+        "error_codes": ["C014"]
+      },
+      {
+        "id": "BR-011",
+        "description": "Monthly cost: base rate per Kbps (DS1=0.15, DS3=0.08, OC3=0.04, OC12=0.02, ETH=0.01) * service class multiplier (PREM=1.5, STD=1.0, ECON=0.75)",
+        "category": "pricing"
+      }
+    ],
+    "implicit": [
+      {
+        "id": "BR-007",
+        "description": "Premium service class cannot downgrade bandwidth below 50% of current allocation",
+        "category": "modification",
+        "error_codes": ["C012"]
+      },
+      {
+        "id": "BR-010",
+        "description": "Premium service class can exceed cross-connect limit by up to 50% (max 96)",
+        "category": "capacity"
+      },
+      {
+        "id": "BR-012",
+        "description": "Colocation site adds 15% premium to monthly cost",
+        "category": "pricing"
+      },
+      {
+        "id": "BR-013",
+        "description": "Install fee equals first month cost",
+        "category": "pricing"
+      }
+    ]
+  },
+  "data_constraints": [
+    {"field": "action", "constraint": "Must be one of: ASGN, MOD, DECOM, QUERY"},
+    {"field": "circuit_type", "constraint": "Must be one of: DS1, DS3, OC3, OC12, ETH"},
+    {"field": "service_class", "constraint": "Must be one of: PREM, STD, ECON"},
+    {"field": "site_status", "constraint": "Must be one of: ACTIVE, INACTIVE"},
+    {"field": "circuit_status", "constraint": "Must be one of: AVAIL, ASSIGNED, RESERVED, DECOM"},
+    {"field": "cross_connects", "constraint": "Non-negative integer, max 64 (96 for premium)"}
+  ],
+  "test_scenarios": [
+    {
+      "id": "TS-001",
+      "description": "Assign DS1 circuit to active owned site",
+      "input": {"action": "ASGN", "circuit_type": "DS1", "bandwidth": 1544, "service_class": "STD", "site_status": "ACTIVE", "site_type": "OWNED", "site_capacity": 100, "site_used": 50, "cross_connects": 30},
+      "expected": {"status": "ASSIGNED", "monthly_cost": 231.60, "install_fee": 231.60},
+      "rules_tested": ["BR-003", "BR-011", "BR-013"]
+    },
+    {
+      "id": "TS-002",
+      "description": "Assign ETH circuit to colocation site (15% premium)",
+      "input": {"action": "ASGN", "circuit_type": "ETH", "bandwidth": 100000, "service_class": "PREM", "site_status": "ACTIVE", "site_type": "COLO", "site_capacity": 200, "site_used": 100, "cross_connects": 20},
+      "expected": {"monthly_cost": 1725.00},
+      "rules_tested": ["BR-011", "BR-012"]
+    },
+    {
+      "id": "TS-003",
+      "description": "Bandwidth exceeds DS3 limit",
+      "input": {"action": "ASGN", "circuit_type": "DS3", "bandwidth": 50000},
+      "expected": {"error_code": "C006"},
+      "rules_tested": ["BR-002"]
+    },
+    {
+      "id": "TS-004",
+      "description": "Site at capacity",
+      "input": {"action": "ASGN", "circuit_type": "DS1", "bandwidth": 1000, "service_class": "STD", "site_status": "ACTIVE", "site_capacity": 50, "site_used": 50, "cross_connects": 10},
+      "expected": {"error_code": "C008"},
+      "rules_tested": ["BR-004"]
+    },
+    {
+      "id": "TS-005",
+      "description": "Premium can exceed cross-connect limit (up to 96)",
+      "input": {"action": "ASGN", "circuit_type": "DS1", "bandwidth": 1000, "service_class": "PREM", "site_status": "ACTIVE", "site_capacity": 200, "site_used": 50, "cross_connects": 70, "site_type": "OWNED"},
+      "expected": {"status": "ASSIGNED"},
+      "rules_tested": ["BR-010"]
+    },
+    {
+      "id": "TS-006",
+      "description": "Non-premium blocked at cross-connect limit",
+      "input": {"action": "ASGN", "circuit_type": "DS1", "bandwidth": 1000, "service_class": "STD", "site_status": "ACTIVE", "site_capacity": 200, "site_used": 50, "cross_connects": 64},
+      "expected": {"error_code": "C009"},
+      "rules_tested": ["BR-005"]
+    },
+    {
+      "id": "TS-007",
+      "description": "Modify assigned circuit bandwidth",
+      "input": {"action": "MOD", "circuit_type": "DS3", "bandwidth": 30000, "service_class": "STD", "current_status": "ASSIGNED", "max_bw": 44736, "current_bw": 20000},
+      "expected": {"monthly_cost": 2400.00},
+      "rules_tested": ["BR-006", "BR-011"]
+    },
+    {
+      "id": "TS-008",
+      "description": "Premium circuit downgrade below 50% blocked",
+      "input": {"action": "MOD", "circuit_type": "DS3", "bandwidth": 5000, "service_class": "PREM", "current_status": "ASSIGNED", "max_bw": 44736, "current_bw": 20000},
+      "expected": {"error_code": "C012"},
+      "rules_tested": ["BR-007"]
+    },
+    {
+      "id": "TS-009",
+      "description": "Decommission assigned circuit",
+      "input": {"action": "DECOM", "current_status": "ASSIGNED", "child_count": 0},
+      "expected": {"status": "DECOM", "monthly_cost": 0},
+      "rules_tested": ["BR-008"]
+    },
+    {
+      "id": "TS-010",
+      "description": "Cannot decommission parent with children",
+      "input": {"action": "DECOM", "current_status": "ASSIGNED", "child_count": 3},
+      "expected": {"error_code": "C014"},
+      "rules_tested": ["BR-009"]
+    },
+    {
+      "id": "TS-011",
+      "description": "Inactive site blocks assignment",
+      "input": {"action": "ASGN", "circuit_type": "DS1", "bandwidth": 1000, "site_status": "INACTIVE"},
+      "expected": {"error_code": "C007"},
+      "rules_tested": ["BR-003"]
+    },
+    {
+      "id": "TS-012",
+      "description": "Economy class pricing (0.75x multiplier)",
+      "input": {"action": "ASGN", "circuit_type": "OC3", "bandwidth": 100000, "service_class": "ECON", "site_status": "ACTIVE", "site_type": "OWNED", "site_capacity": 200, "site_used": 50, "cross_connects": 10},
+      "expected": {"monthly_cost": 3000.00},
+      "rules_tested": ["BR-011"]
+    }
+  ]
+}

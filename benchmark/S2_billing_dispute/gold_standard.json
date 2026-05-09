@@ -1,0 +1,164 @@
+{
+  "scenario_id": "S2",
+  "scenario_name": "Billing Dispute Resolution",
+  "description": "Processes customer billing disputes for telecom services, validates eligibility, calculates adjustments based on dispute type and customer tier, and routes to appropriate resolution workflow.",
+  "domain": "Billing & Revenue",
+  "legacy_language": "COBOL",
+  "legacy_loc": 195,
+  "business_rules": {
+    "explicit": [
+      {
+        "id": "BR-001",
+        "description": "Validate all required dispute input fields: dispute_id, account_id, dispute_type, dispute_amount",
+        "category": "validation",
+        "error_codes": ["D001", "D002", "D003", "D004", "D005"]
+      },
+      {
+        "id": "BR-002",
+        "description": "Dispute must be filed within 90 days of invoice date",
+        "category": "eligibility",
+        "error_codes": ["D006"]
+      },
+      {
+        "id": "BR-003",
+        "description": "Maximum 12 disputes per year per account",
+        "category": "eligibility",
+        "error_codes": ["D007"]
+      },
+      {
+        "id": "BR-004",
+        "description": "Adjustment calculation based on dispute type: OVCHG=100%, LATFE=50%, TAXER=110%, SVCFL=75% (no SLA) or 100% (with SLA)",
+        "category": "calculation"
+      },
+      {
+        "id": "BR-005",
+        "description": "SLA violation with service failure gets automatic full credit",
+        "category": "calculation"
+      },
+      {
+        "id": "BR-007",
+        "description": "Approval level: AUTO (<=500), SUPERVISOR (<=1000), MANAGER (>1000 with escalation)",
+        "category": "routing"
+      },
+      {
+        "id": "BR-009",
+        "description": "Auto-approved disputes apply credit immediately to account balance",
+        "category": "resolution"
+      },
+      {
+        "id": "BR-010",
+        "description": "Non-auto-approved disputes set to PENDING status",
+        "category": "resolution"
+      }
+    ],
+    "implicit": [
+      {
+        "id": "BR-006",
+        "description": "Loyalty bonus: customers with >24 months tenure get 15% extra on partial credits",
+        "category": "calculation"
+      },
+      {
+        "id": "BR-008",
+        "description": "Platinum customers get auto-approval for disputes up to $1000",
+        "category": "routing"
+      },
+      {
+        "id": "BR-011",
+        "description": "Platinum customers exempt from yearly dispute frequency limit",
+        "category": "eligibility"
+      },
+      {
+        "id": "BR-012",
+        "description": "Account balance never goes below zero after credit (negative balance protection)",
+        "category": "resolution"
+      }
+    ]
+  },
+  "data_constraints": [
+    {"field": "dispute_type", "constraint": "Must be one of: OVCHG, SVCFL, LATFE, TAXER"},
+    {"field": "dispute_amount", "constraint": "Must be positive and <= invoice_total"},
+    {"field": "customer_tier", "constraint": "Must be one of: PLATINUM, GOLD, SILVER, BRONZE"},
+    {"field": "prior_disputes_ytd", "constraint": "Non-negative integer"},
+    {"field": "months_as_customer", "constraint": "Non-negative integer"},
+    {"field": "sla_violation_flag", "constraint": "Boolean (Y/N)"}
+  ],
+  "test_scenarios": [
+    {
+      "id": "TS-001",
+      "description": "Overcharge dispute with auto-approval",
+      "input": {"dispute_type": "OVCHG", "dispute_amount": 200.00, "invoice_total": 500.00, "customer_tier": "SILVER", "months_as_customer": 12, "prior_disputes_ytd": 2, "sla_violation_flag": false},
+      "expected": {"adjustment_amount": 200.00, "adjustment_type": "FULL-CREDIT", "approval_level": "AUTO", "credit_applied": true},
+      "rules_tested": ["BR-004", "BR-007", "BR-009"]
+    },
+    {
+      "id": "TS-002",
+      "description": "Late fee dispute with loyalty bonus",
+      "input": {"dispute_type": "LATFE", "dispute_amount": 100.00, "invoice_total": 500.00, "customer_tier": "GOLD", "months_as_customer": 36, "prior_disputes_ytd": 1, "sla_violation_flag": false},
+      "expected": {"adjustment_amount": 57.50, "adjustment_type": "PARTIAL-CRD", "approval_level": "AUTO"},
+      "rules_tested": ["BR-004", "BR-006"]
+    },
+    {
+      "id": "TS-003",
+      "description": "Service failure with SLA violation",
+      "input": {"dispute_type": "SVCFL", "dispute_amount": 800.00, "invoice_total": 1000.00, "customer_tier": "GOLD", "months_as_customer": 6, "prior_disputes_ytd": 0, "sla_violation_flag": true},
+      "expected": {"adjustment_amount": 800.00, "adjustment_type": "FULL-CREDIT", "approval_level": "SUPERVISOR"},
+      "rules_tested": ["BR-005", "BR-007"]
+    },
+    {
+      "id": "TS-004",
+      "description": "Tax error dispute with goodwill",
+      "input": {"dispute_type": "TAXER", "dispute_amount": 50.00, "invoice_total": 200.00, "customer_tier": "BRONZE", "months_as_customer": 3, "prior_disputes_ytd": 0, "sla_violation_flag": false},
+      "expected": {"adjustment_amount": 55.00, "adjustment_type": "FULL+GDWILL", "approval_level": "AUTO"},
+      "rules_tested": ["BR-004"]
+    },
+    {
+      "id": "TS-005",
+      "description": "Platinum customer auto-approval for high-value",
+      "input": {"dispute_type": "OVCHG", "dispute_amount": 900.00, "invoice_total": 1200.00, "customer_tier": "PLATINUM", "months_as_customer": 48, "prior_disputes_ytd": 5, "sla_violation_flag": false},
+      "expected": {"adjustment_amount": 900.00, "approval_level": "AUTO", "credit_applied": true},
+      "rules_tested": ["BR-008", "BR-009"]
+    },
+    {
+      "id": "TS-006",
+      "description": "Dispute exceeds frequency limit (non-Platinum rejected)",
+      "input": {"dispute_type": "OVCHG", "dispute_amount": 100.00, "invoice_total": 500.00, "customer_tier": "GOLD", "months_as_customer": 12, "prior_disputes_ytd": 12, "sla_violation_flag": false},
+      "expected": {"error_code": "D007"},
+      "rules_tested": ["BR-003"]
+    },
+    {
+      "id": "TS-007",
+      "description": "Platinum exempt from frequency limit",
+      "input": {"dispute_type": "OVCHG", "dispute_amount": 100.00, "invoice_total": 500.00, "customer_tier": "PLATINUM", "months_as_customer": 60, "prior_disputes_ytd": 12, "sla_violation_flag": false},
+      "expected": {"adjustment_amount": 100.00, "approval_level": "AUTO"},
+      "rules_tested": ["BR-011"]
+    },
+    {
+      "id": "TS-008",
+      "description": "Dispute outside 90-day window",
+      "input": {"dispute_type": "OVCHG", "dispute_amount": 100.00, "days_since_invoice": 95},
+      "expected": {"error_code": "D006"},
+      "rules_tested": ["BR-002"]
+    },
+    {
+      "id": "TS-009",
+      "description": "Dispute amount exceeds invoice total",
+      "input": {"dispute_type": "OVCHG", "dispute_amount": 600.00, "invoice_total": 500.00},
+      "expected": {"error_code": "D005"},
+      "rules_tested": ["BR-001"]
+    },
+    {
+      "id": "TS-010",
+      "description": "High-value dispute escalation to manager",
+      "input": {"dispute_type": "TAXER", "dispute_amount": 1500.00, "invoice_total": 2000.00, "customer_tier": "SILVER", "months_as_customer": 6, "prior_disputes_ytd": 0, "sla_violation_flag": false},
+      "expected": {"adjustment_amount": 1650.00, "approval_level": "MANAGER", "escalation": true, "credit_applied": false},
+      "rules_tested": ["BR-004", "BR-007", "BR-010"]
+    },
+    {
+      "id": "TS-011",
+      "description": "Negative balance protection",
+      "input": {"dispute_type": "OVCHG", "dispute_amount": 300.00, "invoice_total": 500.00, "account_balance": 100.00, "customer_tier": "SILVER", "months_as_customer": 6, "prior_disputes_ytd": 0, "sla_violation_flag": false},
+      "expected": {"account_balance": 0, "credit_applied": true},
+      "rules_tested": ["BR-012"]
+    }
+  ]
+}

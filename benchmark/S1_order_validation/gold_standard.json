@@ -1,0 +1,255 @@
+{
+  "scenario_id": "S1",
+  "scenario_name": "Order Validation & Processing",
+  "domain": "Order Management",
+  "complexity": "Medium",
+  "loc": 248,
+  "rules": [
+    {
+      "id": "BR-001",
+      "description": "Order type must be one of NEW, DIS (disconnect), or MOD (modify)",
+      "type": "validation",
+      "category": "explicit",
+      "source_lines": "118-122",
+      "inputs": ["order_type"],
+      "effect": "REJECT with E011 if order_type not in ('NEW', 'DIS', 'MOD')"
+    },
+    {
+      "id": "BR-002",
+      "description": "Account must exist in account master file",
+      "type": "precondition",
+      "category": "explicit",
+      "source_lines": "125-130",
+      "inputs": ["account_id"],
+      "effect": "REJECT with E001 if account not found"
+    },
+    {
+      "id": "BR-003",
+      "description": "Closed accounts cannot place any orders",
+      "type": "precondition",
+      "category": "explicit",
+      "source_lines": "132-136",
+      "inputs": ["account_status"],
+      "effect": "REJECT with E002 if account_status = 'CLO'"
+    },
+    {
+      "id": "BR-004",
+      "description": "Suspended accounts can only place disconnect orders",
+      "type": "precondition",
+      "category": "explicit",
+      "source_lines": "140-146",
+      "inputs": ["account_status", "order_type"],
+      "effect": "REJECT with E003 if account_status = 'SUS' and order_type != 'DIS'"
+    },
+    {
+      "id": "BR-005",
+      "description": "Accounts with past-due balance exceeding $500 are blocked unless Platinum tier",
+      "type": "precondition",
+      "category": "implicit",
+      "source_lines": "149-155",
+      "inputs": ["past_due_amount", "account_tier"],
+      "effect": "REJECT with E005 if past_due > 500.00 and tier != 'P'",
+      "implicit_reason": "The $500 threshold is defined as a constant, and the Platinum exemption is only apparent from the nested IF structure"
+    },
+    {
+      "id": "BR-006",
+      "description": "Product must exist in inventory for NEW and MOD orders",
+      "type": "precondition",
+      "category": "explicit",
+      "source_lines": "158-164",
+      "inputs": ["product_id", "order_type"],
+      "effect": "REJECT with E006 if product not found (only for NEW/MOD)"
+    },
+    {
+      "id": "BR-007",
+      "description": "Discontinued products cannot be ordered",
+      "type": "precondition",
+      "category": "explicit",
+      "source_lines": "166-170",
+      "inputs": ["inventory_status"],
+      "effect": "REJECT with E012 if product status = 'D'"
+    },
+    {
+      "id": "BR-008",
+      "description": "Order quantity must be within product min/max range",
+      "type": "validation",
+      "category": "explicit",
+      "source_lines": "172-177",
+      "inputs": ["quantity", "min_order_qty", "max_order_qty"],
+      "effect": "REJECT with E008 if quantity < min or quantity > max"
+    },
+    {
+      "id": "BR-009",
+      "description": "Sufficient available (unreserved) inventory must exist",
+      "type": "precondition",
+      "category": "implicit",
+      "source_lines": "179-189",
+      "inputs": ["quantity", "available_qty", "reserved_qty"],
+      "effect": "REJECT with E007 if quantity > (available_qty - reserved_qty) or product not in 'A' status",
+      "implicit_reason": "Available stock is calculated as available_qty minus reserved_qty, which is not obvious from variable names alone"
+    },
+    {
+      "id": "BR-010",
+      "description": "Discount percentage limited by account tier: Standard 15%, Gold 25%, Platinum 35%",
+      "type": "validation",
+      "category": "implicit",
+      "source_lines": "192-210",
+      "inputs": ["discount_pct", "account_tier"],
+      "effect": "REJECT with E009 if discount exceeds tier limit",
+      "implicit_reason": "Discount limits are defined as separate constants and the tier-to-limit mapping is spread across an EVALUATE block"
+    },
+    {
+      "id": "BR-011",
+      "description": "Rush priority (S) silently downgraded to Normal (N) for non-Gold/Platinum accounts",
+      "type": "transformation",
+      "category": "implicit",
+      "source_lines": "213-217",
+      "inputs": ["priority", "account_tier"],
+      "effect": "If priority = 'S' and tier not in ('P', 'G'), change priority to 'N'",
+      "implicit_reason": "No error is raised — the system silently modifies the priority, which is a hidden business rule"
+    },
+    {
+      "id": "BR-012",
+      "description": "Due date must be in the future (after order date); same-day only for Platinum rush orders",
+      "type": "validation",
+      "category": "implicit",
+      "source_lines": "220-240",
+      "inputs": ["requested_due_date", "order_date", "priority", "account_tier"],
+      "effect": "REJECT with E010 if due_date < order_date, or due_date = order_date unless (priority = 'S' and tier = 'P'). Due date validation skipped for disconnect orders.",
+      "implicit_reason": "The same-day exception for Platinum rush orders is buried in a nested conditional, and the disconnect exemption is controlled by the calling paragraph"
+    }
+  ],
+  "constraints": [
+    {
+      "id": "DC-001",
+      "description": "Order total equals (quantity * unit_price) - discount + tax",
+      "field": "order_total",
+      "formula": "order_total = (quantity * unit_price) * (1 - discount_pct/100) + tax_amount"
+    },
+    {
+      "id": "DC-002",
+      "description": "Tax amount is zero for government accounts (region = GOVT)",
+      "field": "tax_amount",
+      "constraint": "IF region = 'GOVT' THEN tax_amount = 0"
+    },
+    {
+      "id": "DC-003",
+      "description": "Disconnect orders have zero total — pricing is skipped entirely",
+      "field": "order_total",
+      "constraint": "IF order_type = 'DIS' THEN order_total = 0"
+    },
+    {
+      "id": "DC-004",
+      "description": "Credit check: new balance (current_balance + order_total) must not exceed credit limit. Platinum accounts get 10% overage allowance.",
+      "field": "new_balance",
+      "constraint": "new_balance <= credit_limit (or <= credit_limit * 1.10 for Platinum)"
+    },
+    {
+      "id": "DC-005",
+      "description": "All monetary values are DECIMAL(9,2) and non-negative",
+      "field": "monetary_fields",
+      "constraint": "DECIMAL(9,2), >= 0"
+    },
+    {
+      "id": "DC-006",
+      "description": "Inventory reserved quantity is incremented by order quantity upon successful order",
+      "field": "reserved_qty",
+      "constraint": "reserved_qty_new = reserved_qty_old + order_quantity"
+    }
+  ],
+  "expected_bsg_operations": [
+    "receive_order",
+    "validate_order_type",
+    "validate_account",
+    "check_past_due",
+    "validate_product",
+    "check_inventory",
+    "validate_discount",
+    "adjust_priority",
+    "validate_due_date",
+    "calculate_pricing",
+    "check_credit",
+    "reserve_inventory",
+    "submit_order",
+    "reject_order"
+  ],
+  "test_scenarios": [
+    {
+      "id": "T-001",
+      "description": "Happy path: valid NEW order for active Gold account",
+      "expected_result": "SUBMITTED",
+      "tests_rules": ["BR-001", "BR-002", "BR-003", "BR-006", "BR-008", "BR-009", "BR-010"]
+    },
+    {
+      "id": "T-002",
+      "description": "Closed account attempting NEW order",
+      "expected_result": "REJECTED",
+      "expected_error": "E002",
+      "tests_rules": ["BR-003"]
+    },
+    {
+      "id": "T-003",
+      "description": "Suspended account placing disconnect order (should succeed)",
+      "expected_result": "SUBMITTED",
+      "tests_rules": ["BR-004"]
+    },
+    {
+      "id": "T-004",
+      "description": "Suspended account placing NEW order (should fail)",
+      "expected_result": "REJECTED",
+      "expected_error": "E003",
+      "tests_rules": ["BR-004"]
+    },
+    {
+      "id": "T-005",
+      "description": "Past-due Silver account (>$500) blocked",
+      "expected_result": "REJECTED",
+      "expected_error": "E005",
+      "tests_rules": ["BR-005"]
+    },
+    {
+      "id": "T-006",
+      "description": "Past-due Platinum account (>$500) allowed (exemption)",
+      "expected_result": "SUBMITTED",
+      "tests_rules": ["BR-005"]
+    },
+    {
+      "id": "T-007",
+      "description": "Standard account with 20% discount (exceeds 15% limit)",
+      "expected_result": "REJECTED",
+      "expected_error": "E009",
+      "tests_rules": ["BR-010"]
+    },
+    {
+      "id": "T-008",
+      "description": "Rush priority silently downgraded for Standard tier",
+      "expected_result": "SUBMITTED with priority changed from S to N",
+      "tests_rules": ["BR-011"]
+    },
+    {
+      "id": "T-009",
+      "description": "Same-day due date for Platinum rush order (allowed)",
+      "expected_result": "SUBMITTED",
+      "tests_rules": ["BR-012"]
+    },
+    {
+      "id": "T-010",
+      "description": "Government account with zero tax",
+      "expected_result": "SUBMITTED with tax_amount = 0",
+      "tests_rules": ["DC-002"]
+    },
+    {
+      "id": "T-011",
+      "description": "Platinum account exceeding credit limit by 8% (within 10% overage)",
+      "expected_result": "SUBMITTED",
+      "tests_rules": ["DC-004"]
+    },
+    {
+      "id": "T-012",
+      "description": "Platinum account exceeding credit limit by 12% (over 10% overage)",
+      "expected_result": "REJECTED",
+      "expected_error": "E004",
+      "tests_rules": ["DC-004"]
+    }
+  ]
+}

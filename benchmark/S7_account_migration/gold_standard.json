@@ -1,0 +1,198 @@
+{
+  "scenario_id": "S7",
+  "scenario_name": "Account Migration (Multi-step)",
+  "description": "Handles customer account migration between platforms: eligibility check, service inventory validation, data mapping, cutover scheduling, rollback handling, and post-migration verification.",
+  "domain": "Account Management",
+  "legacy_language": "COBOL",
+  "legacy_loc": 280,
+  "business_rules": {
+    "explicit": [
+      {
+        "id": "BR-001",
+        "description": "Validate migration request. CHECK requires source and target platforms (must differ). All actions need account_id.",
+        "category": "validation",
+        "error_codes": ["M001", "M002", "M003", "M004"]
+      },
+      {
+        "id": "BR-003",
+        "description": "Active orders block migration eligibility",
+        "category": "eligibility",
+        "error_codes": ["M005"]
+      },
+      {
+        "id": "BR-004",
+        "description": "More than 5 open tickets blocks migration",
+        "category": "eligibility",
+        "error_codes": ["M006"]
+      },
+      {
+        "id": "BR-005",
+        "description": "Complexity: LOW (<=10 services AND <=100GB), MEDIUM (<=50 services AND <=1000GB), HIGH (otherwise)",
+        "category": "assessment"
+      },
+      {
+        "id": "BR-007",
+        "description": "Migration planning requires ELIGIBLE status",
+        "category": "lifecycle",
+        "error_codes": ["M007"]
+      },
+      {
+        "id": "BR-008",
+        "description": "Cost = (services * $150) + (data_gb * $2.50), multiplied by customer type factor",
+        "category": "pricing"
+      },
+      {
+        "id": "BR-009",
+        "description": "Migration execution requires PLANNED status",
+        "category": "lifecycle",
+        "error_codes": ["M009"]
+      },
+      {
+        "id": "BR-010",
+        "description": "Verification requires EXECUTING or COMPLETE status",
+        "category": "lifecycle",
+        "error_codes": ["M010"]
+      },
+      {
+        "id": "BR-012",
+        "description": "Rollback requires EXECUTING or COMPLETE status and rollback must be available",
+        "category": "lifecycle",
+        "error_codes": ["M011", "M012"]
+      }
+    ],
+    "implicit": [
+      {
+        "id": "BR-002",
+        "description": "Source and target platform must be different",
+        "category": "validation",
+        "error_codes": ["M004"]
+      },
+      {
+        "id": "BR-006",
+        "description": "Risk score = (services * 2) + (data_gb / 100) + (tickets * 10), enterprise gets 1.5x, capped at 100",
+        "category": "assessment"
+      },
+      {
+        "id": "BR-011",
+        "description": "Enterprise accounts with failed services auto-rollback; non-enterprise get PARTIAL status",
+        "category": "verification"
+      },
+      {
+        "id": "BR-013",
+        "description": "Customer type cost multiplier: Enterprise=2.0x, SMB=1.5x, Consumer=1.0x",
+        "category": "pricing"
+      },
+      {
+        "id": "BR-014",
+        "description": "Cutover window must be >= estimated duration (LOW=2hr, MEDIUM=4hr, HIGH=8hr)",
+        "category": "planning",
+        "error_codes": ["M008"]
+      },
+      {
+        "id": "BR-015",
+        "description": "Successful verification disables rollback permanently",
+        "category": "lifecycle"
+      }
+    ]
+  },
+  "data_constraints": [
+    {"field": "action", "constraint": "Must be one of: CHECK, PLAN, EXEC, VERIFY, ROLLBK, QUERY"},
+    {"field": "source_platform", "constraint": "Must be one of: LEGACY, MIDTIR"},
+    {"field": "target_platform", "constraint": "Must be one of: MODERN, CLOUD"},
+    {"field": "customer_type", "constraint": "Must be one of: ENTE, SMB, CONS"},
+    {"field": "migration_status", "constraint": "Must be one of: ELIGIBLE, PLANNED, EXECUTING, COMPLETE, ROLLEDBACK, FAILED, VERIFIED"}
+  ],
+  "test_scenarios": [
+    {
+      "id": "TS-001",
+      "description": "Check eligibility for simple consumer migration",
+      "input": {"action": "CHECK", "source_platform": "LEGACY", "target_platform": "MODERN", "customer_type": "CONS", "service_count": 5, "data_size_gb": 50, "active_orders": 0, "open_tickets": 2},
+      "expected": {"status": "ELIGIBLE", "complexity": "LOW", "risk_score": 30},
+      "rules_tested": ["BR-001", "BR-005", "BR-006"]
+    },
+    {
+      "id": "TS-002",
+      "description": "Active orders block eligibility",
+      "input": {"action": "CHECK", "source_platform": "LEGACY", "target_platform": "CLOUD", "active_orders": 3, "open_tickets": 0},
+      "expected": {"error_code": "M005"},
+      "rules_tested": ["BR-003"]
+    },
+    {
+      "id": "TS-003",
+      "description": "Too many open tickets blocks eligibility",
+      "input": {"action": "CHECK", "source_platform": "LEGACY", "target_platform": "MODERN", "active_orders": 0, "open_tickets": 8},
+      "expected": {"error_code": "M006"},
+      "rules_tested": ["BR-004"]
+    },
+    {
+      "id": "TS-004",
+      "description": "Enterprise high complexity risk score (capped at 100)",
+      "input": {"action": "CHECK", "source_platform": "MIDTIR", "target_platform": "CLOUD", "customer_type": "ENTE", "service_count": 80, "data_size_gb": 5000, "active_orders": 0, "open_tickets": 4},
+      "expected": {"status": "ELIGIBLE", "complexity": "HIGH", "risk_score": 100},
+      "rules_tested": ["BR-005", "BR-006"]
+    },
+    {
+      "id": "TS-005",
+      "description": "Same source and target platform rejected",
+      "input": {"action": "CHECK", "source_platform": "LEGACY", "target_platform": "LEGACY"},
+      "expected": {"error_code": "M004"},
+      "rules_tested": ["BR-002"]
+    },
+    {
+      "id": "TS-006",
+      "description": "Plan migration with enterprise cost multiplier",
+      "input": {"action": "PLAN", "migration_status": "ELIGIBLE", "complexity": "MEDIUM", "customer_type": "ENTE", "service_count": 30, "data_size_gb": 500, "cutover_window_hr": 6},
+      "expected": {"status": "PLANNED", "estimated_cost": 11500.00, "est_duration_hr": 4},
+      "rules_tested": ["BR-007", "BR-008", "BR-013"]
+    },
+    {
+      "id": "TS-007",
+      "description": "Cutover window too small for high complexity",
+      "input": {"action": "PLAN", "migration_status": "ELIGIBLE", "complexity": "HIGH", "customer_type": "SMB", "service_count": 60, "data_size_gb": 2000, "cutover_window_hr": 4},
+      "expected": {"error_code": "M008"},
+      "rules_tested": ["BR-014"]
+    },
+    {
+      "id": "TS-008",
+      "description": "Execute requires PLANNED status",
+      "input": {"action": "EXEC", "migration_status": "ELIGIBLE"},
+      "expected": {"error_code": "M009"},
+      "rules_tested": ["BR-009"]
+    },
+    {
+      "id": "TS-009",
+      "description": "Enterprise with failed services auto-rolls back",
+      "input": {"action": "VERIFY", "migration_status": "COMPLETE", "customer_type": "ENTE", "services_migrated": 28, "services_failed": 2, "rollback_available": true},
+      "expected": {"status": "ROLLEDBACK"},
+      "rules_tested": ["BR-010", "BR-011"]
+    },
+    {
+      "id": "TS-010",
+      "description": "Non-enterprise partial migration accepted",
+      "input": {"action": "VERIFY", "migration_status": "COMPLETE", "customer_type": "SMB", "services_migrated": 28, "services_failed": 2, "rollback_available": true},
+      "expected": {"status": "COMPLETE", "result_code": "PARTIAL"},
+      "rules_tested": ["BR-010", "BR-011"]
+    },
+    {
+      "id": "TS-011",
+      "description": "Successful verification disables rollback",
+      "input": {"action": "VERIFY", "migration_status": "EXECUTING", "customer_type": "CONS", "services_migrated": 5, "services_failed": 0, "rollback_available": true},
+      "expected": {"status": "VERIFIED", "rollback_available": false},
+      "rules_tested": ["BR-010", "BR-015"]
+    },
+    {
+      "id": "TS-012",
+      "description": "Rollback when available",
+      "input": {"action": "ROLLBK", "migration_status": "EXECUTING", "rollback_available": true},
+      "expected": {"status": "ROLLEDBACK"},
+      "rules_tested": ["BR-012"]
+    },
+    {
+      "id": "TS-013",
+      "description": "Cannot rollback when rollback unavailable",
+      "input": {"action": "ROLLBK", "migration_status": "COMPLETE", "rollback_available": false},
+      "expected": {"error_code": "M012"},
+      "rules_tested": ["BR-012"]
+    }
+  ]
+}
