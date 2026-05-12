@@ -192,7 +192,7 @@ class ChainOfThoughtBaseline(BaseAgent):
                 fixed_test_code = fixed_test_code.replace(old_import, "from main")
 
             test_file = tmp_path / "test_equivalence.py"
-            path_fix = f"import sys\nsys.path.insert(0, '{tmpdir}')\n"
+            path_fix = f"import sys\nsys.path.insert(0, {tmpdir!r})\n"
             test_file.write_text(path_fix + fixed_test_code)
 
             result = subprocess.run(
