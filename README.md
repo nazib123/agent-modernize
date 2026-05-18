@@ -4,7 +4,7 @@
 
 AgentModernize is a multi-agent LLM framework that treats legacy modernization as a behavioral preservation problem. Four specialized agents handle extraction, specification, code generation, and equivalence validation, connected through **Behavioral Specification Graphs (BSGs)** that make extracted business logic explicit and inspectable before any code is generated.
 
-For evaluation methodology, BER tables, and discussion, see **our paper (PDF)** on **arXiv**: **https://arxiv.org/abs/XXXX.XXXXXX** — substitute your real manuscript ID after submission. This repository implements the evaluation protocol described in that paper.
+For methodology, BER tables, and discussion, cite **our paper**. When it is on arXiv (or your venue), add **`https://arxiv.org/abs/<id>`** here and in the BibTeX block below. This repository implements the evaluation protocol described in that paper.
 
 ## Architecture
 
@@ -17,7 +17,7 @@ Legacy Artifact Bundle
         |
   Agent 3: Transformer     --> Modernized Service
         |                          ^
-  Agent 4: Validator        -------| (feedback loop, up to 3 iterations)
+  Agent 4: Validator        -------| (retry Agent 3: Transformer with feedback, ≤3×)
         |
   Equivalence Report
 ```
@@ -39,9 +39,10 @@ eval_bsg.py       # BSG extraction quality evaluation
 run_experiment.py # Single-scenario experiment runner
 run_fair_eval_existing.py    # Fair evaluation across scenarios (existing `results/` layouts)
 run_full_baseline_comparison.py  # SP-LLM / CoT-LLM / AM comparison
-run_model_comparison.py      # GPT-4o-mini vs GPT-4o vs GPT-5.3-codex
+run_model_comparison.py      # GPT-4o-mini vs GPT-4o vs GPT-5.3-codex (see code for exact API model id)
 run_codex_comparison.py      # Frontier model study
 ```
+
 ## Quick Start
 
 ```bash
@@ -54,8 +55,8 @@ export OPENAI_API_KEY=your-key-here
 # Run a single scenario
 python run_experiment.py --scenario S1
 
-# Re-run fair evaluation on existing result folders (recommended for paper-style tables:
-# all 8 scenarios, 3 trials, all model layouts mini / gpt4o / codex)
+# Re-run fair evaluation on existing result folders (paper-style tables: 8 scenarios,
+# 3 trials, model layouts mini / gpt4o / codex)
 python run_fair_eval_existing.py --model all --trials 3
 
 # Or: run AM + baselines + fair eval in one driver (single pass per cell; default mini layout)
@@ -65,11 +66,15 @@ python run_experiment.py --fair-eval-all
 python run_model_comparison.py
 ```
 
-On Windows PowerShell:
+On Windows PowerShell (same Python commands as above after setting the key):
 
 ```powershell
 pip install -r requirements.txt
 $env:OPENAI_API_KEY = "your-key-here"
+python run_experiment.py --scenario S1
+python run_fair_eval_existing.py --model all --trials 3
+python run_experiment.py --fair-eval-all
+python run_model_comparison.py
 ```
 
 ## Reproducibility
@@ -78,7 +83,7 @@ $env:OPENAI_API_KEY = "your-key-here"
 |------|---------|
 | **Python** | 3.11 |
 | **Core libraries** | LangGraph, pytest, OpenAI SDK |
-| **Models tested** | GPT-4o-mini, GPT-4o, GPT-5.3-codex |
+| **Models tested** | GPT-4o-mini, GPT-4o, GPT-5.3-codex (exact API identifiers in evaluation scripts) |
 | **Temperature** | 0.2 (extraction), 0.0 (generation / evaluation) |
 | **Trials** | 3 per scenario per method (when using `run_fair_eval_existing.py --trials 3`) |
 | **Total API cost** | &lt; $15 for full evaluation suite (approximate; varies with snapshot and usage) |
