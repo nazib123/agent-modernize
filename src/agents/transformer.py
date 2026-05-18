@@ -37,7 +37,15 @@ Requirements:
 8. Include error codes matching the legacy system (E001, E002, etc.)
 9. Use type hints throughout
 10. Add a main FastAPI endpoint: POST /orders/validate-and-submit
-11. Use Pydantic v2 syntax (e.g., constr(pattern=...) NOT constr(regex=...), model_validate NOT parse_obj)
+11. Use Pydantic v2 syntax only:
+- Use constr(pattern=...) NOT constr(regex=...)
+- Use conint(ge=..., le=...) NOT conint(0, 10)
+- Use condecimal(ge=..., le=...) NOT condecimal(0, 100)
+- Use model_validate NOT parse_obj
+- Use model_dump NOT dict()
+- Use @field_validator (Pydantic V2) NOT @validator (Pydantic V1)
+- Do NOT use Pydantic V1 `field=` or `config=` parameters; use `model_config = ConfigDict(...)` if config is needed
+- Do not assign new fields to Pydantic request objects after creation; create response dictionaries instead
 12. Use standard Python types with Annotated for constraints when possible
 
 ## CRITICAL: Behavioral Preservation
@@ -80,7 +88,12 @@ keeping everything that already passes UNCHANGED.
 2. KEEP all passing logic exactly as-is
 3. Only modify the specific functions/logic that cause test failures
 4. Preserve all imports, class definitions, and endpoint structure
-5. Use Pydantic v2 syntax (constr(pattern=...) NOT constr(regex=...))
+5. Use **Pydantic v2 only**:
+   - Use constr(pattern=...) NOT constr(regex=...)
+   - Use model_validate NOT parse_obj; use model_dump NOT dict()
+   - Use @field_validator (Pydantic v2) NOT @validator (v1)
+   - Do NOT use Pydantic v1 `Field(..., field=...)`, `validator=`, or `config=` class parameters;
+     use `model_config = ConfigDict(...)` if configuration is needed
 
 ## Current Implementation (partially working)
 

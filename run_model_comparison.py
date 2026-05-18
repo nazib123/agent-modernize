@@ -156,7 +156,9 @@ def run_fair_eval_both_models() -> None:
                 logger.error("%s/%s: test gen failed", sid, label)
                 continue
 
-            report = evaluator.evaluate_with_tests(sid, modern_code, test_code)
+            report = evaluator.evaluate_with_tests(
+                sid, modern_code, test_code, gold_standard=gold_standard
+            )
             results[sid][label] = report.behavioral_equivalence_rate
             logger.info(
                 "%s / %s: %.1f%% (%d/%d)",

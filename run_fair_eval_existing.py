@@ -6,7 +6,11 @@ code-generation calls needed — only test-generation calls.
 
 Usage:
     python run_fair_eval_existing.py
-    python run_fair_eval_existing.py --scenario S1
+    python run_fair_eval_existing.py --scenario S1 
+    python run_fair_eval_existing.py --trials 3
+    python run_fair_eval_existing.py --model gpt4o --trials 3
+    python run_fair_eval_existing.py --model codex --trials 3
+    python run_fair_eval_existing.py --model all --trials 3
 """
 
 from __future__ import annotations
@@ -39,12 +43,40 @@ SCENARIO_MAP = {
     "S8": "S8_bank_transaction",
 }
 
-METHOD_DIRS = {
-    "am": "{sid}",
-    "am_no_fb": "{sid}_no_feedback",
-    "sp-llm": "{sid}_sp-llm",
-    "cot-llm": "{sid}_cot-llm",
+# Per-model folder layouts. Each layout maps a method to a folder pattern
+# parameterised by {sid} (the scenario id).
+MODEL_LAYOUTS: dict[str, dict[str, str]] = {
+    "mini": {
+        "am": "{sid}",
+        "am_no_fb": "{sid}_no_feedback",
+        "sp-llm": "{sid}_sp-llm",
+        "cot-llm": "{sid}_cot-llm",
+    },
+    "gpt4o": {
+        "am": "{sid}_gpt4o",
+        "am_no_fb": "{sid}_gpt4o_no_feedback",
+        "sp-llm": "{sid}_sp-llm_gpt4o",
+        "cot-llm": "{sid}_cot-llm_gpt4o",
+    },
+    "codex": {
+        "am": "{sid}_codex",
+        "am_no_fb": "{sid}_codex_no_feedback",
+        "sp-llm": "{sid}_sp-llm_codex",
+        "cot-llm": "{sid}_cot-llm_codex",
+    },
 }
+
+# Output filename per model. Keep the historical name for "mini" so the README
+# and existing tooling that already references fair_eval_summary.json continue
+# to work.
+SUMMARY_FILENAMES: dict[str, str] = {
+    "mini": "fair_eval_summary.json",
+    "gpt4o": "fair_eval_summary_gpt4o.json",
+    "codex": "fair_eval_summary_codex.json",
+}
+
+# Backwards-compat alias; existing callers may import METHOD_DIRS.
+METHOD_DIRS = MODEL_LAYOUTS["mini"]
 
 
 def _find_modern_code(results_dir: Path) -> str | None:
@@ -66,27 +98,38 @@ def _load_gold_standard(scenario_id: str) -> dict:
 def run_fair_eval(
     scenario_ids: list[str] | None = None,
     num_trials: int = 1,
+    model: str = "mini",
 ) -> None:
-    """Run fair evaluation on existing results.
+    """Run fair evaluation on existing results for one model layout.
 
     Generates the test suite ONCE per scenario per trial using the AM (best)
     code as the reference, then runs that identical test suite against every
     method's code. When num_trials > 1, reports mean ± std.
+
+    ``model`` selects which folder layout to evaluate ("mini", "gpt4o", or
+    "codex"). The summary JSON is written to a model-specific filename so
+    successive runs do not overwrite each other.
     """
     if scenario_ids is None:
         scenario_ids = list(SCENARIO_MAP.keys())
 
+    if model not in MODEL_LAYOUTS:
+        raise ValueError(
+            f"Unknown model '{model}'. Expected one of {sorted(MODEL_LAYOUTS)}"
+        )
+
+    layout = MODEL_LAYOUTS[model]
     evaluator = GoldStandardEvaluator()
     results_base = Path(RESULTS_DIR)
     all_results: dict[str, dict[str, dict]] = {}
 
-    # --- Multi-trial aggregation ---
     if num_trials > 1:
-        # Collect BER per (scenario, method) across trials
         trial_bers: dict[str, dict[str, list[float]]] = {}
         for trial in range(num_trials):
-            logger.info("=== TRIAL %d/%d ===", trial + 1, num_trials)
-            single_results = _run_single_trial(scenario_ids, evaluator, results_base)
+            logger.info("=== [%s] TRIAL %d/%d ===", model, trial + 1, num_trials)
+            single_results = _run_single_trial(
+                scenario_ids, evaluator, results_base, layout
+            )
             for sid, methods in single_results.items():
                 trial_bers.setdefault(sid, {})
                 for method, data in methods.items():
@@ -94,7 +137,6 @@ def run_fair_eval(
                     ber = data.get("ber", 0.0)
                     trial_bers[sid][method].append(ber)
 
-        # Compute mean ± std
         for sid in trial_bers:
             all_results[sid] = {}
             for method, bers in trial_bers[sid].items():
@@ -106,17 +148,32 @@ def run_fair_eval(
                     "trials": bers,
                 }
     else:
-        all_results = _run_single_trial(scenario_ids, evaluator, results_base)
+        all_results = _run_single_trial(
+            scenario_ids, evaluator, results_base, layout
+        )
 
-    _print_summary(scenario_ids, all_results, num_trials, results_base)
+    _print_summary(scenario_ids, all_results, num_trials, results_base, model, layout)
+
+
+def run_fair_eval_all_models(
+    scenario_ids: list[str] | None = None,
+    num_trials: int = 1,
+) -> None:
+    """Run fair evaluation for every supported model layout, in sequence."""
+    for model in MODEL_LAYOUTS:
+        logger.info(
+            "\n%s\nFair eval for model layout: %s\n%s", "=" * 60, model, "=" * 60
+        )
+        run_fair_eval(scenario_ids, num_trials=num_trials, model=model)
 
 
 def _run_single_trial(
     scenario_ids: list[str],
     evaluator: GoldStandardEvaluator,
     results_base: Path,
+    layout: dict[str, str],
 ) -> dict[str, dict[str, dict]]:
-    """Execute one complete trial across all scenarios and methods."""
+    """Execute one complete trial across all scenarios and methods for one layout."""
     all_results: dict[str, dict[str, dict]] = {}
     REFERENCE_ORDER = ["am", "am_no_fb", "sp-llm", "cot-llm"]
 
@@ -124,22 +181,21 @@ def _run_single_trial(
         if sid not in SCENARIO_MAP:
             continue
         gold_standard = _load_gold_standard(sid)
-        num_gold_tests = len(gold_standard.get("test_scenarios", []))
         all_results[sid] = {}
 
         ref_code = None
         for method in REFERENCE_ORDER:
-            dir_name = METHOD_DIRS[method].format(sid=sid)
+            dir_name = layout[method].format(sid=sid)
             method_dir = results_base / dir_name
             if method_dir.exists():
                 code = _find_modern_code(method_dir)
                 if code:
                     ref_code = code
-                    logger.info("%s: using %s as reference", sid, method)
+                    logger.info("%s: using %s (%s) as reference", sid, method, dir_name)
                     break
 
         if ref_code is None:
-            logger.warning("No modern code for %s, skipping", sid)
+            logger.warning("No modern code for %s in this layout, skipping", sid)
             continue
 
         test_code = evaluator.generate_test_code(sid, ref_code, gold_standard)
@@ -147,7 +203,7 @@ def _run_single_trial(
             logger.error("%s: failed to generate tests, skipping", sid)
             continue
 
-        for method, dir_pattern in METHOD_DIRS.items():
+        for method, dir_pattern in layout.items():
             dir_name = dir_pattern.format(sid=sid)
             method_dir = results_base / dir_name
             if not method_dir.exists():
@@ -157,7 +213,9 @@ def _run_single_trial(
                 continue
 
             try:
-                report = evaluator.evaluate_with_tests(sid, modern_code, test_code)
+                report = evaluator.evaluate_with_tests(
+                    sid, modern_code, test_code, gold_standard=gold_standard
+                )
                 all_results[sid][method] = {
                     "ber": report.behavioral_equivalence_rate,
                     "passed": report.passed_tests,
@@ -165,9 +223,11 @@ def _run_single_trial(
                 }
                 logger.info(
                     "%s / %s: %.1f%% (%d/%d)",
-                    sid, method,
+                    sid,
+                    method,
                     report.behavioral_equivalence_rate,
-                    report.passed_tests, report.total_tests,
+                    report.passed_tests,
+                    report.total_tests,
                 )
             except Exception as e:
                 logger.error("%s / %s failed: %s", sid, method, e)
@@ -181,25 +241,27 @@ def _print_summary(
     all_results: dict,
     num_trials: int,
     results_base: Path,
+    model: str,
+    layout: dict[str, str],
 ) -> None:
-    """Print and save the results summary table."""
-    print(f"\n{'='*75}")
-    title = "Fair Evaluation — Gold-Standard Test Suite"
+    """Print and save the results summary table for one model layout."""
+    print(f"\n{'=' * 75}")
+    title = f"Fair Evaluation — Gold-Standard Test Suite [{model}]"
     if num_trials > 1:
         title += f" ({num_trials} trials, mean ± std)"
     print(title)
-    print(f"{'='*75}")
+    print(f"{'=' * 75}")
     header = f"{'Scenario':<10}"
-    for m in METHOD_DIRS:
+    for m in layout:
         header += f" {m:<16}"
     print(header)
-    print(f"{'-'*75}")
+    print(f"{'-' * 75}")
 
     for sid in scenario_ids:
         if sid not in all_results:
             continue
         row = f"{sid:<10}"
-        for m in METHOD_DIRS:
+        for m in layout:
             data = all_results[sid].get(m, {})
             if "error" in data:
                 row += f" {'ERROR':<15}"
@@ -212,9 +274,10 @@ def _print_summary(
             else:
                 row += f" {'—':<15}"
         print(row)
-    print(f"{'='*75}\n")
+    print(f"{'=' * 75}\n")
 
-    summary_path = results_base / "fair_eval_summary.json"
+    summary_filename = SUMMARY_FILENAMES.get(model, f"fair_eval_summary_{model}.json")
+    summary_path = results_base / summary_filename
     summary_path.write_text(json.dumps(all_results, indent=2))
     logger.info("Summary saved to %s", summary_path)
 
@@ -234,10 +297,24 @@ def main() -> None:
         default=1,
         help="Number of trials for statistical rigor (default: 1).",
     )
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="mini",
+        choices=["mini", "gpt4o", "codex", "all"],
+        help=(
+            "Which model's result folders to evaluate. 'mini' uses S{n}/, "
+            "'gpt4o' uses S{n}_gpt4o/, 'codex' uses S{n}_codex/, and "
+            "'all' runs every model layout in sequence (default: mini)."
+        ),
+    )
     args = parser.parse_args()
 
     scenarios = [args.scenario.upper()] if args.scenario else None
-    run_fair_eval(scenarios, num_trials=args.trials)
+    if args.model == "all":
+        run_fair_eval_all_models(scenarios, num_trials=args.trials)
+    else:
+        run_fair_eval(scenarios, num_trials=args.trials, model=args.model)
 
 
 if __name__ == "__main__":

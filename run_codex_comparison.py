@@ -115,7 +115,9 @@ def run_fair_eval_three_models() -> None:
                 results[sid][label] = 0.0
                 continue
 
-            report = evaluator.evaluate_with_tests(sid, modern_code, test_code)
+            report = evaluator.evaluate_with_tests(
+                sid, modern_code, test_code, gold_standard=gold_standard
+            )
             results[sid][label] = report.behavioral_equivalence_rate
             logger.info(
                 "%s / %s: %.1f%% (%d/%d)",
