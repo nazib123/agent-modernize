@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -61,17 +62,32 @@ class BaseAgent(ABC):
             Updated pipeline state dictionary.
         """
 
-    def _invoke_llm(self, prompt: str) -> str:
-        """Send a prompt to the LLM and return the response text."""
+    def _invoke_llm(self, prompt: str, *, max_retries: int = 3) -> str:
+        """Send a prompt to the LLM and return the response text.
+
+        Retries on transient connection errors with exponential backoff.
+        """
         logger.info("[%s] Invoking LLM (%s)", self.agent_name, self.model_name)
-        response = self.llm.invoke(prompt)
-        content = response.content
-        if isinstance(content, list):
-            content = "\n".join(
-                block.get("text", "") if isinstance(block, dict) else str(block)
-                for block in content
-            )
-        return content
+        for attempt in range(max_retries):
+            try:
+                response = self.llm.invoke(prompt)
+                content = response.content
+                if isinstance(content, list):
+                    content = "\n".join(
+                        block.get("text", "") if isinstance(block, dict) else str(block)
+                        for block in content
+                    )
+                return content
+            except Exception as exc:
+                if attempt < max_retries - 1 and "onnection" in str(exc):
+                    wait = 2 ** (attempt + 1)
+                    logger.warning(
+                        "[%s] Connection error (attempt %d/%d), retrying in %ds: %s",
+                        self.agent_name, attempt + 1, max_retries, wait, exc,
+                    )
+                    time.sleep(wait)
+                else:
+                    raise
 
     def _parse_json_response(self, response: str) -> dict:
         """Extract and parse JSON from LLM response, handling markdown fences."""

@@ -16,6 +16,7 @@ from langgraph.graph import END, StateGraph
 
 from src.agents.legacy_analyzer import LegacyAnalyzerAgent
 from src.agents.spec_generator import SpecGeneratorAgent
+from src.agents.systems_analyzer import SystemsAnalyzerAgent
 from src.agents.transformer import ModernizationTransformerAgent
 from src.agents.validator import EquivalenceValidatorAgent
 import src.config as config
@@ -33,6 +34,15 @@ def _analyze(state: dict[str, Any]) -> dict[str, Any]:
     if _MODEL_OVERRIDE:
         kwargs["model_name"] = _MODEL_OVERRIDE
     agent = LegacyAnalyzerAgent(**kwargs)
+    return agent.run(state)
+
+
+def _systems_analyze(state: dict[str, Any]) -> dict[str, Any]:
+    """Node 1b: Systems Analyzer — extracts I/O specs, field maps, dependencies."""
+    kwargs: dict[str, Any] = {}
+    if _MODEL_OVERRIDE:
+        kwargs["model_name"] = _MODEL_OVERRIDE
+    agent = SystemsAnalyzerAgent(**kwargs)
     return agent.run(state)
 
 
@@ -97,19 +107,21 @@ def build_pipeline() -> StateGraph:
     """Construct the AgentModernize LangGraph pipeline.
 
     Pipeline flow:
-        analyze → specify → transform → validate
-                                ↑            │
-                                └── retry ───┘
+        analyze → systems_analyze → specify → transform → validate
+                                                  ↑            │
+                                                  └── retry ───┘
     """
     workflow = StateGraph(dict)
 
     workflow.add_node("analyze", _analyze)
+    workflow.add_node("systems_analyze", _systems_analyze)
     workflow.add_node("specify", _specify)
     workflow.add_node("transform", _transform)
     workflow.add_node("validate", _validate)
 
     workflow.set_entry_point("analyze")
-    workflow.add_edge("analyze", "specify")
+    workflow.add_edge("analyze", "systems_analyze")
+    workflow.add_edge("systems_analyze", "specify")
     workflow.add_edge("specify", "transform")
     workflow.add_edge("transform", "validate")
 
@@ -182,6 +194,11 @@ def save_results(state: dict[str, Any], output_dir: str | Path) -> None:
     if state.get("business_rules"):
         bri_path = out_path / f"{scenario_id}_bri.json"
         bri_path.write_text(json.dumps(state["business_rules"].to_dict(), indent=2))
+
+    # Save SystemsLayer
+    if state.get("systems_spec"):
+        sys_path = out_path / f"{scenario_id}_systems_spec.json"
+        sys_path.write_text(json.dumps(state["systems_spec"].to_dict(), indent=2))
 
     # Save BSG
     if state.get("bsg"):

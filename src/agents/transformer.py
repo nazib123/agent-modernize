@@ -16,7 +16,7 @@ from src.models.bsg import BehavioralSpecificationGraph
 logger = logging.getLogger(__name__)
 
 TRANSFORMER_PROMPT = """You are an expert software engineer specializing in modernizing legacy
-telecom systems into clean, modern Python APIs. Your task is to generate a complete, runnable
+telecom systems into clean, modern Python. Your task is to generate a complete, runnable
 Python implementation from a Behavioral Specification Graph (BSG).
 
 ## Instructions
@@ -24,36 +24,55 @@ Python implementation from a Behavioral Specification Graph (BSG).
 Generate a SINGLE Python file that implements the entire workflow described in the BSG below.
 
 Requirements:
-1. Use **Pydantic** models for all data structures (input/output/internal)
-2. Use **FastAPI** for the API endpoint
-3. Implement EVERY operation node as a function
-4. Enforce ALL preconditions as input validations (raise HTTPException with appropriate error codes)
+1. The output MUST be a **FastAPI web application**:
+   - Start with `from fastapi import FastAPI, HTTPException`
+   - Declare `app = FastAPI()` at module scope
+   - Expose each business operation as a `@app.post(...)` or `@app.get(...)` endpoint
+   - Accept inputs via Pydantic request models and return JSON responses
+   - Do NOT produce argparse, CLI, or script-style code
+   - Do NOT use `if __name__ == "__main__"` as the entry point for business logic
+2. Implement EVERY operation node as a function or endpoint
+3. Use type hints and Pydantic v2 BaseModel for all request/response models
+4. Enforce ALL preconditions as input validations (raise HTTPException on failure)
 5. Enforce ALL postconditions as assertions or output validations
 6. Preserve ALL global invariants
 7. Map BSG edge labels to control flow:
    - sequence → sequential function calls
    - conditional → if/else branching
-   - error → exception handling with specific error codes
-8. Include error codes matching the legacy system (E001, E002, etc.)
-9. Use type hints throughout
-10. Add a main FastAPI endpoint: POST /orders/validate-and-submit
-11. Use Pydantic v2 syntax only:
-- Use constr(pattern=...) NOT constr(regex=...)
-- Use conint(ge=..., le=...) NOT conint(0, 10)
-- Use condecimal(ge=..., le=...) NOT condecimal(0, 100)
-- Use model_validate NOT parse_obj
-- Use model_dump NOT dict()
-- Use @field_validator (Pydantic V2) NOT @validator (Pydantic V1)
-- Do NOT use Pydantic V1 `field=` or `config=` parameters; use `model_config = ConfigDict(...)` if config is needed
-- Do not assign new fields to Pydantic request objects after creation; create response dictionaries instead
-12. Use standard Python types with Annotated for constraints when possible
+   - loop → while/for loops (e.g., read-process cycles)
+   - branch → if/elif or match/case dispatching by segment/record type
+   - error → exception handling with specific error codes via HTTPException
+8. Use standard Python types with Annotated[..., Field(...)] for constraints — do NOT
+   use condecimal, conint, constr, confloat, or any other pydantic constraint types
+
+## CRITICAL: Systems-Level I/O Implementation
+
+If the BSG contains a "systems_layer" or nodes have "io_fields", you MUST generate
+**real I/O code** that reads/writes binary data at the specified byte offsets:
+
+- Use `data[offset:offset+length]` for field extraction
+- Use `.decode('cp037')` for EBCDIC fields, `.decode('ascii')` for ASCII
+- For COMP-3 (packed decimal) fields, implement a `decode_comp3(data, offset, length)` function
+- For fields marked `requires_expand: true`, use a **default placeholder value** and add
+  a comment: `# BLOCKED: requires <dependency_name> — using default`
+- Implement record iteration (e.g., scan for segment identifiers in binary data)
+- Handle the record header format specified in `input_files[].header_size`
+
+## CRITICAL: Dependency Awareness
+
+If a node has "node_dependencies" with availability="opaque":
+- Do NOT attempt to implement the missing routine
+- Use default values for blocked fields
+- Log a warning message listing which fields are using defaults
+- Generate a modernization readiness report at the end showing:
+  - Fields extractable: count and names
+  - Fields blocked: count, names, and which dependency blocks them
 
 ## CRITICAL: Behavioral Preservation
 
 - Every business rule referenced in the BSG MUST be enforced in the generated code
-- Silent transformations (e.g., priority downgrade) must be preserved exactly
-- Conditional exemptions (e.g., tier-based discount limits) must match the BSG spec
-- Pricing calculations must produce identical results to the legacy formulas
+- Silent transformations must be preserved exactly
+- Conditional exemptions must match the BSG spec
 - Error codes must match exactly
 
 {feedback_section}

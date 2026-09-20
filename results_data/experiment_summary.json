@@ -1,0 +1,73 @@
+{
+  "experiment_date": "2026-05-03",
+  "llm_model": "gpt-4o-mini",
+  "max_iterations": 3,
+  "benchmark": "TelecomLegacy-8",
+  "results": {
+    "S1": {
+      "scenario": "Order Validation & Processing",
+      "sp_llm": {"passed": 2, "total": 14, "ber": 14.3},
+      "cot_llm": {"passed": 0, "total": 13, "ber": 0.0},
+      "am_no_feedback": {"passed": 0, "total": 10, "ber": 0.0},
+      "agent_modernize": {"passed": 9, "total": 12, "ber": 75.0, "iterations": 3, "failed_rules": ["BR-001", "BR-011", "BR-021"]}
+    },
+    "S2": {
+      "scenario": "Billing Dispute Resolution",
+      "sp_llm": {"passed": 1, "total": 10, "ber": 10.0},
+      "cot_llm": {"passed": 0, "total": 2, "ber": 0.0},
+      "am_no_feedback": {"passed": 5, "total": 10, "ber": 50.0},
+      "agent_modernize": {"passed": 3, "total": 10, "ber": 30.0, "iterations": 3, "failed_rules": ["BR-001", "BR-002", "BR-004", "BR-005", "BR-006", "BR-009", "BR-010"]}
+    },
+    "S3": {
+      "scenario": "Service Activation & Provisioning",
+      "sp_llm": {"passed": 2, "total": 14, "ber": 14.3},
+      "cot_llm": {"passed": 0, "total": 2, "ber": 0.0},
+      "am_no_feedback": {"passed": 0, "total": 6, "ber": 0.0},
+      "agent_modernize": {"passed": 0, "total": 9, "ber": 0.0, "iterations": 3, "failed_rules": ["BR-001", "BR-002", "BR-003", "BR-004", "BR-005", "BR-006", "BR-007", "BR-008", "BR-012"]}
+    },
+    "S4": {
+      "scenario": "Circuit Inventory Management",
+      "sp_llm": {"passed": 0, "total": 17, "ber": 0.0},
+      "cot_llm": {"passed": 0, "total": 2, "ber": 0.0},
+      "am_no_feedback": {"passed": 3, "total": 17, "ber": 17.6},
+      "agent_modernize": {"passed": 7, "total": 11, "ber": 63.6, "iterations": 3, "failed_rules": ["BR-001", "BR-004", "BR-006", "BR-012"]}
+    },
+    "S5": {
+      "scenario": "Fault Ticket Escalation",
+      "sp_llm": {"passed": 4, "total": 12, "ber": 33.3},
+      "cot_llm": {"passed": 7, "total": 11, "ber": 63.6},
+      "am_no_feedback": {"passed": 0, "total": 2, "ber": 0.0},
+      "agent_modernize": {"passed": 6, "total": 10, "ber": 60.0, "iterations": 3, "failed_rules": ["BR-001", "BR-002", "BR-003", "BR-010"]}
+    },
+    "S6": {
+      "scenario": "Contract Renewal Processing",
+      "sp_llm": {"passed": 6, "total": 16, "ber": 37.5},
+      "cot_llm": {"passed": 0, "total": 2, "ber": 0.0},
+      "am_no_feedback": {"passed": 11, "total": 12, "ber": 91.7},
+      "agent_modernize": {"passed": 0, "total": 9, "ber": 0.0, "iterations": 3, "failed_rules": ["BR-001", "BR-002", "BR-003", "BR-004", "BR-005", "BR-006", "BR-010", "BR-014", "BR-015"]}
+    },
+    "S7": {
+      "scenario": "Account Migration (Multi-step)",
+      "sp_llm": {"passed": 4, "total": 18, "ber": 22.2},
+      "cot_llm": {"passed": 4, "total": 12, "ber": 33.3},
+      "am_no_feedback": {"passed": 0, "total": 2, "ber": 0.0},
+      "agent_modernize": {"passed": 5, "total": 9, "ber": 55.6, "iterations": 3, "failed_rules": ["BR-001", "BR-006", "BR-007", "BR-012"]}
+    },
+    "S8": {
+      "scenario": "Bank Transaction Processing",
+      "sp_llm": {"passed": 4, "total": 16, "ber": 25.0},
+      "cot_llm": {"passed": 0, "total": 2, "ber": 0.0},
+      "am_no_feedback": {"passed": 6, "total": 16, "ber": 37.5},
+      "agent_modernize": {"passed": 6, "total": 9, "ber": 66.7, "iterations": 3, "failed_rules": ["BR-007", "BR-009", "BR-015"]}
+    }
+  },
+  "averages": {
+    "sp_llm_ber": 18.8,
+    "cot_llm_ber": 13.8,
+    "am_no_feedback_ber": 22.8,
+    "agent_modernize_ber": 40.6,
+    "improvement_over_sp_llm": "2.2x",
+    "avg_effort_reduction": "47.2%",
+    "feedback_improvement": "+17.8% over no-feedback"
+  }
+}

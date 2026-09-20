@@ -1,0 +1,268 @@
+{
+  "S1": {
+    "am": {
+      "ber_mean": 25.0,
+      "ber_std": 0.0,
+      "trials": [
+        25.0,
+        25.0,
+        25.0
+      ]
+    },
+    "am_no_fb": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "sp-llm": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "cot-llm": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "S2": {
+    "am": {
+      "ber_mean": 9.1,
+      "ber_std": 0.0,
+      "trials": [
+        9.090909090909092,
+        9.090909090909092,
+        9.090909090909092
+      ]
+    },
+    "am_no_fb": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "sp-llm": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "cot-llm": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "S3": {
+    "am": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "am_no_fb": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "sp-llm": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "cot-llm": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "S4": {
+    "am": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "am_no_fb": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "sp-llm": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "cot-llm": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "S5": {
+    "am": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "am_no_fb": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "sp-llm": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "cot-llm": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "S6": {
+    "am": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "am_no_fb": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "sp-llm": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "cot-llm": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  },
+  "S7": {
+    "am": {
+      "ber_mean": 15.4,
+      "ber_std": 0.0,
+      "trials": [
+        15.384615384615385,
+        15.384615384615385,
+        15.384615384615385
+      ]
+    },
+    "am_no_fb": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "sp-llm": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "cot-llm": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "S1": {
+    "SP-LLM / mini": 0.0,
+    "SP-LLM / 4o": 0.0,
+    "SP-LLM / codex": 8.333333333333332,
+    "CoT / mini": 0.0,
+    "CoT / 4o": 0.0,
+    "CoT / codex": 8.333333333333332,
+    "AM / mini": 25.0,
+    "AM / 4o": 0.0,
+    "AM / codex": 0.0
+  },
+  "S2": {
+    "SP-LLM / mini": 0.0,
+    "SP-LLM / 4o": 0.0,
+    "SP-LLM / codex": 0.0,
+    "CoT / mini": 0.0,
+    "CoT / 4o": 0.0,
+    "CoT / codex": 0.0,
+    "AM / mini": 9.090909090909092,
+    "AM / 4o": 9.090909090909092,
+    "AM / codex": 0.0
+  },
+  "S3": {
+    "SP-LLM / mini": 0.0,
+    "SP-LLM / 4o": 30.0,
+    "SP-LLM / codex": 80.0,
+    "CoT / mini": 0.0,
+    "CoT / 4o": 0.0,
+    "CoT / codex": 0.0,
+    "AM / mini": 0.0,
+    "AM / 4o": 40.0,
+    "AM / codex": 0.0
+  },
+  "S4": {
+    "SP-LLM / mini": 0.0,
+    "SP-LLM / 4o": 33.33333333333333,
+    "SP-LLM / codex": 0.0,
+    "CoT / mini": 0.0,
+    "CoT / 4o": 0.0,
+    "CoT / codex": 0.0,
+    "AM / mini": 0.0,
+    "AM / 4o": 0.0,
+    "AM / codex": 0.0
+  },
+  "S5": {
+    "SP-LLM / mini": 0.0,
+    "SP-LLM / 4o": 0.0,
+    "SP-LLM / codex": 75.0,
+    "CoT / mini": 0.0,
+    "CoT / 4o": 33.33333333333333,
+    "CoT / codex": 58.333333333333336,
+    "AM / mini": 0.0,
+    "AM / 4o": 0.0,
+    "AM / codex": 75.0
+  },
+  "S6": {
+    "SP-LLM / mini": 0.0,
+    "SP-LLM / 4o": 0.0,
+    "SP-LLM / codex": 0.0,
+    "CoT / mini": 60.0,
+    "CoT / 4o": 0.0,
+    "CoT / codex": 0.0,
+    "AM / mini": 0.0,
+    "AM / 4o": 0.0,
+    "AM / codex": 0.0
+  },
+  "S7": {
+    "SP-LLM / mini": 7.6923076923076925,
+    "SP-LLM / 4o": 0.0,
+    "SP-LLM / codex": 0.0,
+    "CoT / mini": 0.0,
+    "CoT / 4o": 0.0,
+    "CoT / codex": 0.0,
+    "AM / mini": 15.384615384615385,
+    "AM / 4o": 0.0,
+    "AM / codex": 0.0
+  },
+  "S8": {
+    "SP-LLM / mini": 0.0,
+    "SP-LLM / 4o": 0.0,
+    "SP-LLM / codex": 0.0,
+    "CoT / mini": 20.0,
+    "CoT / 4o": 0.0,
+    "CoT / codex": 6.666666666666667,
+    "AM / mini": 0.0,
+    "AM / 4o": 26.666666666666668,
+    "AM / codex": 13.333333333333334
+  }
+}

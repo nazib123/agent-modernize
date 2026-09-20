@@ -75,7 +75,13 @@ def test_BR001_example():
 ## Output
 
 Return ONLY the Python test file. No explanations, no markdown fences.
-Start with import statements. Include at least one test per business rule.
+Start with import statements.
+
+**IMPORTANT CONSTRAINTS:**
+- Maximum 15 test functions total. Combine related rules into single tests.
+- Keep total file under 300 lines. Be concise — use helper functions to avoid repetition.
+- Every test must be syntactically complete (no truncated strings or assertions).
+
 Focus on testing BUSINESS LOGIC, not Pydantic schema validation.
 """
 
@@ -162,8 +168,20 @@ class EquivalenceValidatorAgent(BaseAgent):
 
             # Write the test file with sys.path fix
             test_file = tmp_path / "test_equivalence.py"
-            path_fix = f"import sys\nsys.path.insert(0, {tmpdir!r})\n"
-            test_file.write_text(path_fix + fixed_test_code)
+            path_fix = f"import sys\nsys.path.insert(0, r'{tmpdir}')\n"
+            full_test_code = path_fix + fixed_test_code
+
+            # Syntax-check before writing — catch truncated LLM output
+            try:
+                compile(full_test_code, str(test_file), "exec")
+            except SyntaxError as exc:
+                logger.warning(
+                    "[%s] Generated test has syntax error at line %d: %s — truncating to last valid function",
+                    self.agent_name, exc.lineno or 0, exc.msg,
+                )
+                full_test_code = self._truncate_to_valid(full_test_code)
+
+            test_file.write_text(full_test_code)
 
             # Find the python binary (prefer venv)
             python_bin = sys.executable
@@ -251,6 +269,28 @@ class EquivalenceValidatorAgent(BaseAgent):
         )
         report._raw_output = output  # type: ignore[attr-defined]
         return report
+
+    @staticmethod
+    def _truncate_to_valid(code: str) -> str:
+        """Remove the last (broken) function from truncated LLM output."""
+        lines = code.split("\n")
+        last_good = len(lines)
+        # Walk backwards to find the start of the last `def test_` function
+        for i in range(len(lines) - 1, -1, -1):
+            if lines[i].startswith("def test_"):
+                last_good = i
+                break
+        truncated = "\n".join(lines[:last_good])
+        # Verify it compiles now
+        try:
+            compile(truncated, "<truncated>", "exec")
+        except SyntaxError:
+            # Last resort: keep only imports and helpers (everything before first test)
+            for i, line in enumerate(lines):
+                if line.startswith("def test_"):
+                    truncated = "\n".join(lines[:i])
+                    break
+        return truncated
 
     def _clean_code_response(self, response: str) -> str:
         """Strip markdown fences if present."""

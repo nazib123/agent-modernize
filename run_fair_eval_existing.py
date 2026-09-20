@@ -43,6 +43,19 @@ SCENARIO_MAP = {
     "S8": "S8_bank_transaction",
 }
 
+# Expected gold-standard test count per scenario.
+# Used to detect broken test generation (e.g. 0/2 instead of 0/12).
+EXPECTED_TESTS: dict[str, int] = {
+    "S1": 12, "S2": 11, "S3": 10, "S4": 12,
+    "S5": 12, "S6": 10, "S7": 13, "S8": 15,
+}
+
+# Minimum fraction of expected tests that must be collected.
+# Below this threshold, test generation is retried.
+MIN_TEST_FRACTION = 0.5
+
+MAX_LOW_COUNT_RETRIES = 2
+
 # Per-model folder layouts. Each layout maps a method to a folder pattern
 # parameterised by {sid} (the scenario id).
 MODEL_LAYOUTS: dict[str, dict[str, str]] = {
@@ -102,9 +115,11 @@ def run_fair_eval(
 ) -> None:
     """Run fair evaluation on existing results for one model layout.
 
-    Generates the test suite ONCE per scenario per trial using the AM (best)
-    code as the reference, then runs that identical test suite against every
-    method's code. When num_trials > 1, reports mean ± std.
+    Generates a **per-method** test suite for each scenario: each method's
+    own code is used as the reference for test generation, ensuring the
+    tests match the method's API surface (endpoint names, schemas).  The
+    same gold-standard business rules are tested for every method.
+    When num_trials > 1, reports mean ± std.
 
     ``model`` selects which folder layout to evaluate ("mini", "gpt4o", or
     "codex"). The summary JSON is written to a model-specific filename so
@@ -173,35 +188,21 @@ def _run_single_trial(
     results_base: Path,
     layout: dict[str, str],
 ) -> dict[str, dict[str, dict]]:
-    """Execute one complete trial across all scenarios and methods for one layout."""
+    """Execute one complete trial across all scenarios and methods for one layout.
+
+    Tests are generated **per method** so that each method's test suite
+    matches its own API surface (endpoint names, request schemas).  The
+    *same* gold-standard business rules are tested for every method —
+    only the HTTP-level test harness differs.  This avoids penalising a
+    method simply because it chose different endpoint names.
+    """
     all_results: dict[str, dict[str, dict]] = {}
-    REFERENCE_ORDER = ["am", "am_no_fb", "sp-llm", "cot-llm"]
 
     for sid in scenario_ids:
         if sid not in SCENARIO_MAP:
             continue
         gold_standard = _load_gold_standard(sid)
         all_results[sid] = {}
-
-        ref_code = None
-        for method in REFERENCE_ORDER:
-            dir_name = layout[method].format(sid=sid)
-            method_dir = results_base / dir_name
-            if method_dir.exists():
-                code = _find_modern_code(method_dir)
-                if code:
-                    ref_code = code
-                    logger.info("%s: using %s (%s) as reference", sid, method, dir_name)
-                    break
-
-        if ref_code is None:
-            logger.warning("No modern code for %s in this layout, skipping", sid)
-            continue
-
-        test_code = evaluator.generate_test_code(sid, ref_code, gold_standard)
-        if test_code is None:
-            logger.error("%s: failed to generate tests, skipping", sid)
-            continue
 
         for method, dir_pattern in layout.items():
             dir_name = dir_pattern.format(sid=sid)
@@ -212,15 +213,76 @@ def _run_single_trial(
             if modern_code is None:
                 continue
 
+            # Sanitize this method's code before test generation so the LLM
+            # sees clean types (str, float) instead of constr(bytes, ...) etc.
+            sanitized_code = evaluator._patch_decimal_issues(modern_code)
+
+            # Generate tests tailored to THIS method's API surface
+            logger.info("%s / %s: generating tests from %s", sid, method, dir_name)
+            test_code = evaluator.generate_test_code(sid, sanitized_code, gold_standard)
+            if test_code is None:
+                logger.error("%s / %s: failed to generate tests, skipping", sid, method)
+                continue
+
             try:
                 report = evaluator.evaluate_with_tests(
-                    sid, modern_code, test_code, gold_standard=gold_standard
+                    sid, modern_code, test_code
                 )
+
+                # Retry if test collection yielded far fewer tests than expected
+                # (indicates broken test code or main.py syntax error).
+                expected = EXPECTED_TESTS.get(sid, 10)
+                if report.total_tests < expected * MIN_TEST_FRACTION:
+                    for retry in range(MAX_LOW_COUNT_RETRIES):
+                        logger.warning(
+                            "%s / %s: low test count %d/%d (expected ~%d), retry %d",
+                            sid, method, report.passed_tests, report.total_tests,
+                            expected, retry + 1,
+                        )
+                        test_code = evaluator.generate_test_code(
+                            sid, sanitized_code, gold_standard
+                        )
+                        if test_code is None:
+                            break
+                        report = evaluator.evaluate_with_tests(
+                            sid, modern_code, test_code
+                        )
+                        if report.total_tests >= expected * MIN_TEST_FRACTION:
+                            break
+
                 all_results[sid][method] = {
                     "ber": report.behavioral_equivalence_rate,
                     "passed": report.passed_tests,
                     "total": report.total_tests,
                 }
+                # Persist the per-scenario, per-method report so compute_brps.py
+                # and downstream analysis can consume fresh, per-rule pass/fail
+                # data. Naming mirrors run_experiment.py --fair-eval outputs.
+                report_dir = method_dir.parent / f"{dir_name}_fair"
+                report_dir.mkdir(parents=True, exist_ok=True)
+                report_path = report_dir / f"{sid}_fair_equiv_report.json"
+                report_path.write_text(
+                    json.dumps(
+                        {
+                            "scenario_id": report.scenario_id,
+                            "behavioral_equivalence_rate": report.behavioral_equivalence_rate,
+                            "passed_tests": report.passed_tests,
+                            "total_tests": report.total_tests,
+                            "results": [
+                                {
+                                    "test_id": r.test_id,
+                                    "description": r.description,
+                                    "status": r.status.value if hasattr(r.status, "value") else str(r.status),
+                                    "bsg_node_id": r.bsg_node_id,
+                                    "business_rule_ids": list(r.business_rule_ids or []),
+                                    "error_message": r.error_message,
+                                }
+                                for r in report.results
+                            ],
+                        },
+                        indent=2,
+                    )
+                )
                 logger.info(
                     "%s / %s: %.1f%% (%d/%d)",
                     sid,

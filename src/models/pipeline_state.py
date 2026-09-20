@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Any
 
 from src.models.bri import BusinessRuleInventory
-from src.models.bsg import BehavioralSpecificationGraph
+from src.models.bsg import BehavioralSpecificationGraph, SystemsLayer
 from src.models.equivalence_report import BehavioralEquivalenceReport
 
 
@@ -32,7 +32,9 @@ class PipelineState:
     legacy_code_path: str
 
     business_rules: BusinessRuleInventory | None = None
+    systems_spec: SystemsLayer | None = None
     bsg: BehavioralSpecificationGraph | None = None
+    copybook_sources: dict[str, str] = field(default_factory=dict)
     modern_code: str | None = None
     modern_tests: str | None = None
     equiv_report: BehavioralEquivalenceReport | None = None
