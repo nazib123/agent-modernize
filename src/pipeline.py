@@ -72,6 +72,19 @@ def _validate(state: dict[str, Any]) -> dict[str, Any]:
     agent = EquivalenceValidatorAgent(**kwargs)
     state = agent.run(state)
     state["iteration"] = state.get("iteration", 0) + 1
+    report = state.get("equiv_report")
+    if report is not None and state["iteration"] == 1:
+        state["first_state"] = {
+            "modern_code": state["modern_code"],
+            "modern_tests": state.get("modern_tests"),
+            "equiv_report": report,
+        }
+    if report is not None and report.behavioral_equivalence_rate > state.get("best_rate", -1.0):
+        state["best_rate"] = report.behavioral_equivalence_rate
+        state["best_iteration"] = state["iteration"]
+        state["best_code"] = state["modern_code"]
+        state["best_tests"] = state.get("modern_tests")
+        state["best_report"] = report
     return state
 
 
@@ -179,6 +192,24 @@ def run_scenario(
 
     pipeline = build_pipeline()
     final_state = pipeline.invoke(initial_state)
+
+    final_state["last_state"] = {
+        "modern_code": final_state.get("modern_code"),
+        "modern_tests": final_state.get("modern_tests"),
+        "equiv_report": final_state.get("equiv_report"),
+    }
+
+    if config.REGRESSION_AWARE_FEEDBACK and final_state.get("best_report") is not None:
+        final_rate = final_state["equiv_report"].behavioral_equivalence_rate
+        if final_state["best_rate"] > final_rate:
+            logger.info(
+                "Regression-aware: reverting to iteration %d (%.1f%% > final %.1f%%)",
+                final_state["best_iteration"], final_state["best_rate"], final_rate,
+            )
+            final_state["modern_code"] = final_state["best_code"]
+            final_state["modern_tests"] = final_state["best_tests"]
+            final_state["equiv_report"] = final_state["best_report"]
+            final_state["reverted_to_iteration"] = final_state["best_iteration"]
 
     return final_state
 

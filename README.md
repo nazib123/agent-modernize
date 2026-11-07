@@ -93,12 +93,10 @@ python run_model_comparison.py
 If you use AgentModernize or LegacyModernize-8 in your research, please cite:
 
 ```bibtex
-@misc{ahmed2026agentmodernize,
+@misc{anonymous2026agentmodernize,
   title={AgentModernize: Preserving Business Logic in Legacy Modernization with Multi-Agent LLMs and Behavioral Specification Graphs},
-  author={Ahmed, Sheikh Nazib and Galib, Marnim},
+  author={Anonymous},
   year={2026},
-  eprint={2605.17535},
-  archivePrefix={arXiv},
   primaryClass={cs.SE},
   url={https://arxiv.org/abs/2605.17535}
 }

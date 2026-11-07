@@ -383,13 +383,16 @@ class GoldStandardEvaluator(BaseAgent):
             test_file.write_text(
                 f"import sys\nsys.path.insert(0, r'{tmpdir}')\n" + test_code
             )
-            proc = subprocess.run(
-                [sys.executable, "-m", "pytest", str(test_file), "--collect-only", "-q"],
-                capture_output=True,
-                text=True,
-                cwd=tmpdir,
-                timeout=30,
-            )
+            try:
+                proc = subprocess.run(
+                    [sys.executable, "-m", "pytest", str(test_file), "--collect-only", "-q"],
+                    capture_output=True,
+                    text=True,
+                    cwd=tmpdir,
+                    timeout=120,
+                )
+            except subprocess.TimeoutExpired:
+                return False, "pytest --collect-only timed out"
             if proc.returncode == 0:
                 return True, ""
             return False, (proc.stdout + "\n" + proc.stderr)[-1500:]
@@ -468,21 +471,26 @@ class GoldStandardEvaluator(BaseAgent):
             path_fix = f"import sys\nsys.path.insert(0, r'{tmpdir}')\n"
             test_file.write_text(path_fix + fixed_test_code)
 
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "pytest",
-                    str(test_file),
-                    "-v",
-                    "--tb=short",
-                    "--no-header",
-                ],
-                capture_output=True,
-                text=True,
-                cwd=tmpdir,
-                timeout=120,
-            )
+            try:
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        "-m",
+                        "pytest",
+                        str(test_file),
+                        "-v",
+                        "--tb=short",
+                        "--no-header",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    cwd=tmpdir,
+                    timeout=120,
+                )
+            except subprocess.TimeoutExpired:
+                result = subprocess.CompletedProcess(
+                    args=[], returncode=1, stdout="", stderr="pytest timed out after 120s"
+                )
 
             logger.info(
                 "[%s] pytest stdout:\n%s", self.agent_name, result.stdout[-3000:]

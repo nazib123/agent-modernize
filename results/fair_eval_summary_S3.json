@@ -1,0 +1,58 @@
+{
+  "S3": {
+    "am": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "am_no_fb": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "sp-llm": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "cot-llm": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "fb-llm": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "am_ra": {
+      "ber_mean": 0.0,
+      "ber_std": 0.0,
+      "trials": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    }
+  }
+}

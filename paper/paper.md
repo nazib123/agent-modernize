@@ -1,9 +1,7 @@
 # AgentModernize: Preserving Business Logic in Legacy Modernization with Multi-Agent LLMs and Behavioral Specification Graphs
 
-**Sheikh Nazib Ahmed**, **Marnim Galib**
-University of Texas at Arlington
-Arlington, TX, USA
-{sxa5256, marnim.galib}@uta.edu
+**Anonymous Author(s)**
+Anonymous Institution
 
 ## Abstract
 
@@ -360,7 +358,7 @@ Both metrics are computed against a **gold-standard test suite** that is withhel
 
 | Item | Details |
 |------|---------|
-| Repository | https://github.com/nazib123/agent-modernize |
+| Repository | [anonymized for double-blind review] |
 | Python | 3.11 |
 | Core libraries | LangGraph, pytest, OpenAI SDK |
 | Models | GPT-4o-mini, GPT-4o, GPT-5.3-codex |
@@ -622,7 +620,7 @@ Our model comparison (Section 5.6) confirms that the framework is model-agnostic
 
 ## 8. Artifact Availability
 
-The AgentModernize framework implementation, LegacyModernize-8 benchmark scenarios (COBOL/PL/SQL source, gold-standard business rules, and behavioral test suites), BSG schema definitions, evaluation scripts, and sample prompts are publicly available at: https://github.com/nazib123/agent-modernize
+The AgentModernize framework implementation, LegacyModernize-8 benchmark scenarios (COBOL/PL/SQL source, gold-standard business rules, and behavioral test suites), BSG schema definitions, evaluation scripts, and sample prompts are publicly available at: [anonymized for double-blind review]
 
 ## 9. AI Use Disclosure
 

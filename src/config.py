@@ -9,6 +9,7 @@ TEMPERATURE_GENERATION = 0.0
 
 # Pipeline Settings
 MAX_FEEDBACK_ITERATIONS = 3
+REGRESSION_AWARE_FEEDBACK = False
 
 # Benchmark paths (absolute so script works from any directory)
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent

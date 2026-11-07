@@ -21,6 +21,7 @@ import sys
 from pathlib import Path
 
 from src.baselines.chain_of_thought import ChainOfThoughtBaseline
+from src.baselines.llm_feedback import LLMFeedbackBaseline
 from src.baselines.single_prompt import SinglePromptBaseline
 from src.config import BENCHMARK_DIR, RESULTS_DIR
 from src.evaluation import GoldStandardEvaluator
@@ -45,7 +46,7 @@ SCENARIO_MAP = {
 }
 
 
-VALID_BASELINES = {"sp-llm", "cot-llm"}
+VALID_BASELINES = {"sp-llm", "cot-llm", "fb-llm"}
 
 
 def _load_scenario(scenario_id: str) -> tuple[Path, str, dict]:
@@ -99,6 +100,8 @@ def run_baseline(
         agent = SinglePromptBaseline()
     elif baseline == "cot-llm":
         agent = ChainOfThoughtBaseline()
+    elif baseline == "fb-llm":
+        agent = LLMFeedbackBaseline()
     else:
         logger.error("Unknown baseline: %s. Valid: %s", baseline, VALID_BASELINES)
         sys.exit(1)
@@ -137,6 +140,14 @@ def run_single(
 
     scenario_dir, _, gold_standard = _load_scenario(scenario_id)
     state = run_scenario(scenario_dir, model_name=model_name)
+
+    if config_module.REGRESSION_AWARE_FEEDBACK and not no_feedback and not fair_eval:
+        results_base = Path(RESULTS_DIR)
+        save_results({**state, **state["first_state"]}, results_base / f"{scenario_id}_no_feedback")
+        save_results({**state, **state["last_state"]}, results_base / scenario_id)
+        save_results(state, results_base / f"{scenario_id}_am_ra")
+        _print_summary(scenario_id, "AgentModernize (paired: NoFB / last / best)", state)
+        return
 
     if fair_eval:
         evaluator = GoldStandardEvaluator()
@@ -319,7 +330,17 @@ def main() -> None:
         default=None,
         help="LLM model override (e.g., gpt-4o). Default: gpt-4o-mini",
     )
+    parser.add_argument(
+        "--regression-aware",
+        action="store_true",
+        help="Keep the best-scoring iteration instead of the last (feedback loop and fb-llm)",
+    )
     args = parser.parse_args()
+
+    if args.regression_aware:
+        import src.config as config_module
+
+        config_module.REGRESSION_AWARE_FEEDBACK = True
 
     if args.fair_eval_all:
         run_fair_eval_all()

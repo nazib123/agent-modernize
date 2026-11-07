@@ -40,6 +40,8 @@ class BaseAgent(ABC):
                 "model": self.model_name,
                 "temperature": self.temperature,
                 "api_key": api_key,
+                "timeout": 180,
+                "max_retries": 4,
             }
             if base_url:
                 kwargs["base_url"] = base_url

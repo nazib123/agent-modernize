@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 # ── paths ──────────────────────────────────────────────────────────────────
-ALEC_CORE = Path("/Users/sheikhnazib/research/Agent-Repo-main/csg_operator/core")
+ALEC_CORE = Path("/path/to/external/csg_operator/core")  # external dependency, not bundled
 COMPILER_SRC = Path(__file__).resolve().parent.parent
 BENCHMARK = COMPILER_SRC.parent / "benchmark"
 

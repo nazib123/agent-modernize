@@ -64,6 +64,8 @@ MODEL_LAYOUTS: dict[str, dict[str, str]] = {
         "am_no_fb": "{sid}_no_feedback",
         "sp-llm": "{sid}_sp-llm",
         "cot-llm": "{sid}_cot-llm",
+        "fb-llm": "{sid}_fb-llm",
+        "am_ra": "{sid}_am_ra",
     },
     "gpt4o": {
         "am": "{sid}_gpt4o",
@@ -339,6 +341,8 @@ def _print_summary(
     print(f"{'=' * 75}\n")
 
     summary_filename = SUMMARY_FILENAMES.get(model, f"fair_eval_summary_{model}.json")
+    if len(scenario_ids) == 1:
+        summary_filename = summary_filename.replace(".json", f"_{scenario_ids[0]}.json")
     summary_path = results_base / summary_filename
     summary_path.write_text(json.dumps(all_results, indent=2))
     logger.info("Summary saved to %s", summary_path)
