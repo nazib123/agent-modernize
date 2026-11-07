@@ -4,7 +4,7 @@
 
 AgentModernize is a multi-agent LLM framework that treats legacy modernization as a behavioral preservation problem. Four specialized agents handle extraction, specification, code generation, and equivalence validation, connected through **Behavioral Specification Graphs (BSGs)** that make extracted business logic explicit and inspectable before any code is generated.
 
-For methodology, BER tables, and discussion, cite **https://arxiv.org/abs/2605.17535**. This repository implements the evaluation protocol described in that paper.
+For methodology, BER tables, and discussion, see the companion paper (link omitted for double-blind review). This repository implements the evaluation protocol described in that paper.
 
 ## Architecture
 
@@ -97,8 +97,7 @@ If you use AgentModernize or LegacyModernize-8 in your research, please cite:
   title={AgentModernize: Preserving Business Logic in Legacy Modernization with Multi-Agent LLMs and Behavioral Specification Graphs},
   author={Anonymous},
   year={2026},
-  primaryClass={cs.SE},
-  url={https://arxiv.org/abs/2605.17535}
+  primaryClass={cs.SE}
 }
 ```
 
